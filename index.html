@@ -101,6 +101,7 @@
   .month-card-title{ font-size:13px; font-weight:700; color:var(--ink); margin-bottom:2px; }
   .month-card-sub{ font-size:11px; color:var(--ink-soft); margin-bottom:14px; }
   .month-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:12.5px; }
+  .month-row.clickable-row:hover{ background:#F7F5FB; border-radius:8px; }
   .month-row:last-child{ margin-bottom:0; }
   .month-label{ width:60px; flex:none; color:var(--ink); font-weight:600; }
   .month-track{ flex:1; height:8px; background:#EEF0F2; border-radius:99px; overflow:hidden; }
@@ -700,6 +701,32 @@
   </div>
 </div>
 
+<div class="overlay" id="month-detail-overlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="month-detail-title">Detalle del mes</div>
+        <div class="modal-sub" id="month-detail-sub"></div>
+      </div>
+      <button class="modal-close" id="month-detail-close">✕</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>NID</th>
+            <th>Banco</th>
+            <th>Valor desembolso</th>
+            <th>Mixto</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="month-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <script>
 /* =========================================================================
    CONFIGURACIÓN — conexión en vivo al Google Sheet
@@ -1148,25 +1175,54 @@ function groupByMonth(items, dateField){
     const d = it[dateField];
     if(!d) return;
     const key = d.slice(0,7);
-    map[key] = (map[key]||0) + (it.valor||0);
+    if(!map[key]) map[key] = { total:0, items:[] };
+    map[key].total += (it.valor||0);
+    map[key].items.push(it);
   });
   return Object.entries(map).sort((a,b)=> a[0].localeCompare(b[0]));
 }
-function renderMonthlyPanel(containerId, grouped, pendingStyle){
+function renderMonthlyPanel(containerId, grouped, pendingStyle, dateField){
   const el = document.getElementById(containerId);
   if(grouped.length === 0){
     el.innerHTML = `<div class="muted" style="font-size:12.5px;">Sin datos con fecha registrada.</div>`;
     return;
   }
-  const max = Math.max(...grouped.map(([,v]) => v), 1);
-  el.innerHTML = grouped.map(([key, val]) => `
-    <div class="month-row">
+  const max = Math.max(...grouped.map(([,v]) => v.total), 1);
+  el.innerHTML = grouped.map(([key, v]) => `
+    <div class="month-row clickable-row" data-month-key="${key}" data-date-field="${dateField}" style="cursor:pointer;">
       <div class="month-label">${monthLabel(key)}</div>
-      <div class="month-track"><div class="month-fill${pendingStyle ? " pending" : ""}" style="width:${Math.round((val/max)*100)}%"></div></div>
-      <div class="month-value">${fmtValor(val)}</div>
+      <div class="month-track"><div class="month-fill${pendingStyle ? " pending" : ""}" style="width:${Math.round((v.total/max)*100)}%"></div></div>
+      <div class="month-value">${fmtValor(v.total)}</div>
     </div>
   `).join("");
+
+  el.querySelectorAll(".month-row").forEach((row, i) => {
+    row.onclick = () => openMonthDetail(grouped[i][0], grouped[i][1].items, dateField);
+  });
 }
+
+// ---- Detalle al hacer clic en una barra/mes de "Desembolsos por mes" ----
+function openMonthDetail(monthKey, items, dateField){
+  document.getElementById("month-detail-title").textContent = monthLabel(monthKey);
+  document.getElementById("month-detail-sub").textContent = `${items.length} negocio(s)`;
+  const tbody = document.getElementById("month-detail-tbody");
+  tbody.innerHTML = items.map(it => `
+    <tr>
+      <td class="nid">${it.nid}</td>
+      <td class="muted">${it.banco}</td>
+      <td class="val">${fmtValor(it.valor)}</td>
+      <td class="muted">${it.mixto}</td>
+      <td class="muted">${fmtFecha(it[dateField])}</td>
+    </tr>
+  `).join("");
+  document.getElementById("month-detail-overlay").classList.add("show");
+}
+document.getElementById("month-detail-close").addEventListener("click", ()=>{
+  document.getElementById("month-detail-overlay").classList.remove("show");
+});
+document.getElementById("month-detail-overlay").addEventListener("click", (e)=>{
+  if(e.target.id === "month-detail-overlay") e.currentTarget.classList.remove("show");
+});
 
 function renderEstimateCard(items){
   const pendientes = items.filter(it => !ETAPAS_COMPLETAS.includes(it.etapa));
@@ -1182,10 +1238,10 @@ function renderEstimateCard(items){
 }
 
 function renderMonthlyBreakdown(items){
-  const desembolsados = items.filter(it => ETAPAS_COMPLETAS.includes(it.etapa) && it.fechaDesembolso);
+  const desembolsados = items.filter(it => it.etapa === "DESEMBOLSADO" && it.fechaDesembolso);
   const pendientes = items.filter(it => !ETAPAS_COMPLETAS.includes(it.etapa) && it.fechaGestion);
-  renderMonthlyPanel("monthly-desembolsado", groupByMonth(desembolsados, "fechaDesembolso"), false);
-  renderMonthlyPanel("monthly-pendiente", groupByMonth(pendientes, "fechaGestion"), true);
+  renderMonthlyPanel("monthly-desembolsado", groupByMonth(desembolsados, "fechaDesembolso"), false, "fechaDesembolso");
+  renderMonthlyPanel("monthly-pendiente", groupByMonth(pendientes, "fechaGestion"), true, "fechaGestion");
 }
 
 // ---- Pestaña Métricas: distribución por etapa, filtrable por mes ----
