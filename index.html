@@ -244,6 +244,7 @@
   .sla-txt{ font-size:11.5px; color:var(--ink-soft); }
 
   .val{ font-weight:700; }
+  .row-archivado{ opacity:.55; }
   .muted{ color:var(--ink-soft); }
   .footer-note{ margin-top:14px; font-size:11.5px; color:#9CA3AF; text-align:center; }
 
@@ -393,6 +394,10 @@
         <input type="text" id="search" placeholder="Buscar por NID o cliente…" autocomplete="off">
         <button id="search-clear" title="Limpiar">✕</button>
       </div>
+      <label class="toggle-finalizados" style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft); cursor:pointer; white-space:nowrap;">
+        <input type="checkbox" id="show-finalizados">
+        Mostrar finalizados <span id="finalizados-count" class="muted"></span>
+      </label>
     </div>
 
     <div class="table-card">
@@ -672,6 +677,11 @@
         <button class="edit-save" data-field="facturacion">Guardar</button>
       </div>
       <div class="edit-row">
+        <label>Finalizado</label>
+        <select id="edit-finalizado" class="edit-select"></select>
+        <button class="edit-save" data-field="finalizado">Guardar</button>
+      </div>
+      <div class="edit-row">
         <label>Fecha de boleta</label>
         <input type="date" id="edit-fechaBoleta">
         <button class="edit-save" data-field="fechaBoleta">Guardar</button>
@@ -891,6 +901,7 @@ function mapRow(cols, idx){
   const esMixto = get("mixto").toLowerCase().startsWith("s");
   const etapa = get("etapa").toUpperCase().trim() || "SIN ETAPA";
   const facturacionEstado = get("facturacionEstado").toUpperCase().trim() || "SIN DATO";
+  const finalizado = get("finalizado").toUpperCase().trim() || "PTE";
 
   return {
     nid,
@@ -906,7 +917,8 @@ function mapRow(cols, idx){
     valor: parseValor(get("valor")),
     comentario: get("comentario") || "Sin comentarios.",
     etapa,
-    facturacionEstado
+    facturacionEstado,
+    finalizado
   };
 }
 
@@ -960,7 +972,8 @@ function ensureEstado(it){
     ...it,
     etapa: it.etapa || "PTE BOLETA",
     facturacionEstado: it.facturacionEstado || "PTE RUT",
-    fechaFacturaGenerada: it.fechaFacturaGenerada || ""
+    fechaFacturaGenerada: it.fechaFacturaGenerada || "",
+    finalizado: it.finalizado || "PTE"
   };
 }
 
@@ -977,6 +990,7 @@ const etapaBadge = {
   "FINALIZADO": "b-final"
 };
 const ETAPA_OPCIONES = ["PTE BOLETA","PTE CTL","RADICADO DESEMBOLSO","DESEMBOLSADO","PTE LIQUIDACION REGISTRO","PTE DE RADICAR","EN FIRMAS DE ENTIDAD","PTE AVANCE NOTARIA","CONTADO","FINALIZADO"];
+const FINALIZADO_OPCIONES = ["PTE","OK"];
 
 const facturacionBadge = {
   "PTE RUT": "b-amber",
@@ -1084,7 +1098,8 @@ async function loadData(isManual){
       comentario: findColIndex(headers, ["GESTION", "COMENTARIO"]),
       etapa: findColIndex(headers, ["ETAPAS", "ETAPA"]),
       facturacionEstado: findColIndex(headers, ["PENDIENTE FACTURACION"]),
-      fechaFacturaGenerada: findColIndex(headers, ["FECHA DE FACTURA GENERADA"])
+      fechaFacturaGenerada: findColIndex(headers, ["FECHA DE FACTURA GENERADA"]),
+      finalizado: findColIndex(headers, ["FINALIZADO"])
     };
 
     const parsed = rows.slice(1).map(r => mapRow(r, idx)).filter(Boolean);
@@ -1372,6 +1387,7 @@ let currentAnalista = "todos";
 let currentYear = "todos";
 let currentMonth = "todos";
 let currentFacturacion = "todos";
+let showFinalizados = false;
 
 function renderFilters(){
   const select = document.getElementById("filters");
@@ -1471,6 +1487,21 @@ function applyFilter(key){
   renderAll();
 }
 
+function isArchivado(r){
+  return r.etapa === "DESEMBOLSADO" && r.finalizado === "OK";
+}
+
+// Solo para la TABLA de gestión activa: si "Mostrar finalizados" está apagado,
+// se excluyen los negocios DESEMBOLSADO + OK. El resto de métricas/gráficos
+// (Desembolsos por mes, Métricas, etc.) siguen usando filteredRows() completo,
+// así que estos negocios nunca dejan de contar ahí ni desaparecen del Sheet.
+function visibleTableRows(rows){
+  const archivedCount = rows.filter(isArchivado).length;
+  document.getElementById("finalizados-count").textContent = archivedCount > 0 ? `(${archivedCount})` : "";
+  if(showFinalizados) return rows;
+  return rows.filter(r => !isArchivado(r));
+}
+
 function filteredRows(){
   return enriched.filter(r=>{
     if(currentAnalista !== "todos" && r.analista !== currentAnalista) return false;
@@ -1507,6 +1538,10 @@ document.getElementById("search-clear").addEventListener("click", ()=>{
   input.focus();
 });
 document.getElementById("refresh-btn").addEventListener("click", ()=>loadData(true));
+document.getElementById("show-finalizados").addEventListener("change", e=>{
+  showFinalizados = e.target.checked;
+  renderAll();
+});
 
 // ---- Pestañas ----
 document.querySelectorAll(".tab-btn").forEach(btn=>{
@@ -1532,6 +1567,7 @@ function renderTable(rows){
 
   rows.forEach(r=>{
     const tr = document.createElement("tr");
+    if(isArchivado(r)) tr.classList.add("row-archivado");
     const slaPct = r.dias === null ? 0 : Math.min(100, Math.round((r.dias / SLA_DIAS) * 100));
     const slaColor = r.sem === "rojo" ? "var(--red)" : r.sem === "amarillo" ? "var(--amber)" : "var(--green)";
 
@@ -1572,7 +1608,7 @@ function renderAll(){
   renderMonthlyBreakdown(rows);
   renderSummary(rows);
   renderFilters();
-  renderTable(rows);
+  renderTable(visibleTableRows(rows));
   renderMetricsYearFilter();
   renderMetricsMonthFilter();
   renderEtapaCharts();
@@ -1607,6 +1643,10 @@ function openModal(nid){
   const facturacionSel = document.getElementById("edit-facturacion");
   facturacionSel.innerHTML = FACTURACION_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
   facturacionSel.value = FACTURACION_OPCIONES.includes(r.facturacionEstado) ? r.facturacionEstado : FACTURACION_OPCIONES[0];
+
+  const finalizadoSel = document.getElementById("edit-finalizado");
+  finalizadoSel.innerHTML = FINALIZADO_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
+  finalizadoSel.value = FINALIZADO_OPCIONES.includes(r.finalizado) ? r.finalizado : FINALIZADO_OPCIONES[0];
 
   setEditStatus("", "");
   updateSaveButtonsAvailability();
