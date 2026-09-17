@@ -387,6 +387,7 @@
       <select class="analista-select" id="analista-filter"></select>
       <select class="analista-select" id="year-filter"></select>
       <select class="analista-select" id="month-filter"></select>
+      <select class="analista-select" id="facturacion-filter"></select>
       <div class="search-box">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input type="text" id="search" placeholder="Buscar por NID o cliente…" autocomplete="off">
@@ -485,6 +486,7 @@
       <select class="analista-select" id="t-analista-filter"></select>
       <select class="analista-select" id="t-entidad-filter"></select>
       <select class="analista-select" id="t-estado-filter"></select>
+      <select class="analista-select" id="t-etapalegal-filter"></select>
       <select class="analista-select" id="t-sem-filter">
         <option value="todos">Todos los semáforos</option>
         <option value="sem-verde">🟢 A tiempo</option>
@@ -1369,6 +1371,7 @@ let currentFilter = "todos";
 let currentAnalista = "todos";
 let currentYear = "todos";
 let currentMonth = "todos";
+let currentFacturacion = "todos";
 
 function renderFilters(){
   const select = document.getElementById("filters");
@@ -1446,6 +1449,23 @@ function renderMonthFilter(){
   };
 }
 
+function renderFacturacionFilter(){
+  const select = document.getElementById("facturacion-filter");
+  const previousValue = select.value || currentFacturacion;
+  select.innerHTML = `<option value="todos">Toda facturación</option>` +
+    FACTURACION_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
+  if(FACTURACION_OPCIONES.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  } else {
+    select.value = "todos";
+    currentFacturacion = "todos";
+  }
+  select.onchange = () => {
+    currentFacturacion = select.value;
+    renderAll();
+  };
+}
+
 function applyFilter(key){
   currentFilter = key;
   renderAll();
@@ -1463,6 +1483,7 @@ function filteredRows(){
     }
     if(currentYear !== "todos" && (!r.fechaGestion || r.fechaGestion.slice(0,4) !== currentYear)) return false;
     if(currentMonth !== "todos" && (!r.fechaGestion || r.fechaGestion.slice(0,7) !== currentMonth)) return false;
+    if(currentFacturacion !== "todos" && r.facturacionEstado !== currentFacturacion) return false;
     if(searchTerm){
       const haystack = (r.nid + " " + r.cliente + " " + r.conjunto).toLowerCase();
       if(!haystack.includes(searchTerm)) return false;
@@ -1544,6 +1565,7 @@ function renderAll(){
   renderAnalistaFilter();
   renderYearFilter();
   renderMonthFilter();
+  renderFacturacionFilter();
   const rows = filteredRows();
   renderMetrics(rows);
   renderEstimateCard(rows);
@@ -1817,6 +1839,7 @@ let tramitesEnriched = [];
 let tCurrentAnalista = "todos";
 let tCurrentEntidad = "todos";
 let tCurrentEstado = "todos";
+let tCurrentEtapaLegal = "todos";
 let tCurrentSem = "todos";
 let tSearchTerm = "";
 let tCurrentModalNid = null;
@@ -1949,6 +1972,7 @@ function tFilteredRowsBase(includeSem){
     if(tCurrentAnalista !== "todos" && r.analista !== tCurrentAnalista) return false;
     if(tCurrentEntidad !== "todos" && r.entidad !== tCurrentEntidad) return false;
     if(tCurrentEstado !== "todos" && r.estado !== tCurrentEstado) return false;
+    if(tCurrentEtapaLegal !== "todos" && r.etapaLegal !== tCurrentEtapaLegal) return false;
     if(includeSem && tCurrentSem !== "todos" && r.sem !== tCurrentSem) return false;
     if(tSearchTerm){
       const haystack = (r.nid + " " + r.proyecto).toLowerCase();
@@ -1977,6 +2001,12 @@ function renderTramitesFilters(){
   if(ESTADO_TRAMITE_OPCIONES.includes(sPrev) || sPrev === "todos") sSel.value = sPrev; else sSel.value = "todos";
   sSel.onchange = () => { tCurrentEstado = sSel.value; renderTramitesAll(); };
 
+  const lSel = document.getElementById("t-etapalegal-filter");
+  const lPrev = lSel.value || tCurrentEtapaLegal;
+  lSel.innerHTML = `<option value="todos">Todas las etapas de legalización</option>` + ETAPA_LEGAL_OPCIONES.map(a=>`<option value="${a}">${a}</option>`).join("");
+  lSel.value = ETAPA_LEGAL_OPCIONES.includes(lPrev) ? lPrev : "todos";
+  lSel.onchange = () => { tCurrentEtapaLegal = lSel.value; renderTramitesAll(); };
+
   const semSel = document.getElementById("t-sem-filter");
   semSel.value = tCurrentSem === "todos" ? "todos" : "sem-" + tCurrentSem;
   semSel.onchange = () => {
@@ -1989,11 +2019,13 @@ document.getElementById("t-clear-filters").addEventListener("click", ()=>{
   tCurrentAnalista = "todos";
   tCurrentEntidad = "todos";
   tCurrentEstado = "todos";
+  tCurrentEtapaLegal = "todos";
   tCurrentSem = "todos";
   tSearchTerm = "";
   document.getElementById("t-analista-filter").value = "todos";
   document.getElementById("t-entidad-filter").value = "todos";
   document.getElementById("t-estado-filter").value = "todos";
+  document.getElementById("t-etapalegal-filter").value = "todos";
   document.getElementById("t-sem-filter").value = "todos";
   document.getElementById("t-search").value = "";
   document.getElementById("t-search").parentElement.classList.remove("has-text");
