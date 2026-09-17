@@ -244,7 +244,8 @@
   .sla-txt{ font-size:11.5px; color:var(--ink-soft); }
 
   .val{ font-weight:700; }
-  .row-archivado{ opacity:.55; }
+  .row-archivado{ background:#F7F7F8; color:var(--ink-soft); }
+  .row-archivado .badge{ opacity:.85; }
   .muted{ color:var(--ink-soft); }
   .footer-note{ margin-top:14px; font-size:11.5px; color:#9CA3AF; text-align:center; }
 
@@ -1573,7 +1574,7 @@ function renderTable(rows){
 
     tr.innerHTML = `
       <td class="nid">${r.nid}</td>
-      <td><span class="clickable" data-nid="${r.nid}">${r.cliente}</span><span class="conjunto">${r.conjunto}</span></td>
+      <td><span class="clickable" data-nid="${r.nid}">${r.cliente}</span><span class="conjunto">${r.conjunto}</span>${isArchivado(r) ? ' <span class="badge b-gray" style="opacity:1;">🗄️ Archivado</span>' : ''}</td>
       <td class="muted">${r.analista}</td>
       <td><span class="badge ${etapaBadge[r.etapa] || 'b-gray'}">${r.etapa}</span></td>
       <td class="muted">${fmtFecha(r.fechaGestion)}</td>
