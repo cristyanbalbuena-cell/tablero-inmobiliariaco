@@ -408,6 +408,7 @@
               <th>Valor desembolso</th>
               <th>Banco</th>
               <th>Facturación</th>
+              <th>Fecha factura generada</th>
             </tr>
           </thead>
           <tbody id="tbody"></tbody>
@@ -857,6 +858,7 @@ function mapRow(cols, idx){
   const fechaCTL = parseFecha(get("fechaCTL"));
   const fechaDesembolso = parseFecha(get("fechaDesembolso"));
   const fechaGestion = parseFecha(get("fechaGestion"));
+  const fechaFacturaGenerada = parseFecha(get("fechaFacturaGenerada"));
   const esMixto = get("mixto").toLowerCase().startsWith("s");
   const etapa = get("etapa").toUpperCase().trim() || "SIN ETAPA";
   const facturacionEstado = get("facturacionEstado").toUpperCase().trim() || "SIN DATO";
@@ -871,7 +873,7 @@ function mapRow(cols, idx){
     mixto: esMixto ? "Sí" : "No",
     notaria: [get("notaria"), get("escritura")].filter(Boolean).join(" · ") || "—",
     banco: get("banco") || "—",
-    fechaGestion, fechaBoleta, fechaCTL, fechaDesembolso,
+    fechaGestion, fechaBoleta, fechaCTL, fechaDesembolso, fechaFacturaGenerada,
     valor: parseValor(get("valor")),
     comentario: get("comentario") || "Sin comentarios.",
     etapa,
@@ -928,7 +930,8 @@ function ensureEstado(it){
   return {
     ...it,
     etapa: it.etapa || "PTE BOLETA",
-    facturacionEstado: it.facturacionEstado || "PTE RUT"
+    facturacionEstado: it.facturacionEstado || "PTE RUT",
+    fechaFacturaGenerada: it.fechaFacturaGenerada || ""
   };
 }
 
@@ -1051,7 +1054,8 @@ async function loadData(isManual){
       fechaGestion: findColIndex(headers, ["FECHA DE GESTION"]),
       comentario: findColIndex(headers, ["GESTION", "COMENTARIO"]),
       etapa: findColIndex(headers, ["ETAPAS", "ETAPA"]),
-      facturacionEstado: findColIndex(headers, ["PENDIENTE FACTURACION"])
+      facturacionEstado: findColIndex(headers, ["PENDIENTE FACTURACION"]),
+      fechaFacturaGenerada: findColIndex(headers, ["FECHA DE FACTURA GENERADA"])
     };
 
     const parsed = rows.slice(1).map(r => mapRow(r, idx)).filter(Boolean);
@@ -1445,7 +1449,7 @@ function renderTable(rows){
   document.getElementById("footer-note").textContent = `Mostrando ${rows.length} de ${enriched.length} registros`;
 
   if(rows.length === 0){
-    tbody.innerHTML = `<tr><td colspan="10" class="no-results">Sin resultados para "${searchTerm}"</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="no-results">Sin resultados para "${searchTerm}"</td></tr>`;
     return;
   }
 
@@ -1470,6 +1474,7 @@ function renderTable(rows){
       <td class="val">${fmtValor(r.valor)}</td>
       <td class="muted">${r.banco}</td>
       <td><span class="badge ${facturacionBadge[r.facturacionEstado] || 'b-gray'}">${r.facturacionEstado}</span></td>
+      <td class="muted">${fmtFecha(r.fechaFacturaGenerada)}</td>
     `;
     tbody.appendChild(tr);
   });
