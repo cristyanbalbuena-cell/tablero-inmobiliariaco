@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Semáforo de Gestión de Desembolsos · Habi</title>
+<style>
+  :root{
+    --bg: #F7F8FA;
+    --card: #FFFFFF;
+    --ink: #111827;
+    --ink-soft: #6B7280;
+    --line: #E5E7EB;
+    --green: #16A34A;
+    --green-bg: #ECFDF3;
+    --amber: #B45309;
+    --amber-bg: #FEF7E6;
+    --red: #DC2626;
+    --red-bg: #FEF2F2;
+    --blue: #6D28D9;
+    --blue-bg: #F3EEFD;
+    --habi-purple: #6D28D9;
+    --habi-purple-dark: #4C1D95;
+    --habi-coral: #FF6E5E;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family: -apple-system, "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{ max-width:1280px; margin:0 auto; padding:0 24px 60px; }
+
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 24px; margin:0 -24px 26px; background:#fff; border-bottom:1px solid var(--line);
+    position:relative; overflow:hidden; flex-wrap:wrap; gap:10px;
+  }
+  .topbar::after{
+    content:""; position:absolute; right:0; top:0; bottom:0; width:340px;
+    background: radial-gradient(120% 220% at 100% 0%, var(--habi-purple) 0%, var(--habi-purple) 35%, rgba(109,40,217,0) 75%);
+    opacity:.08; pointer-events:none;
+  }
+  .habi-logo{ display:flex; align-items:center; gap:10px; position:relative; z-index:1; }
+  .habi-mark{ width:50px; height:50px; flex:none; }
+  .topbar-title{ font-size:13px; color:var(--ink-soft); font-weight:600; position:relative; z-index:1; }
+  .topbar-right{ display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
+  .sync-status{ font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
+  .sync-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
+  .sync-dot.warn{ background:var(--amber); }
+  .refresh-btn{
+    display:flex; align-items:center; gap:6px; border:1px solid var(--line); background:#fff;
+    color:var(--ink); font-size:12.5px; font-weight:700; padding:7px 12px; border-radius:8px; cursor:pointer;
+  }
+  .refresh-btn:hover{ border-color:var(--habi-purple); color:var(--habi-purple); }
+  .refresh-btn svg{ transition:transform .5s ease; }
+  .refresh-btn.spinning svg{ transform:rotate(360deg); }
+
+  .banner{
+    display:none; align-items:center; gap:8px; font-size:12.5px; padding:10px 14px;
+    border-radius:8px; margin-bottom:18px; background:var(--amber-bg); color:var(--amber); font-weight:600;
+  }
+  .banner.show{ display:flex; }
+
+  .eyebrow{
+    font-size:11px; font-weight:700; letter-spacing:.09em; color:var(--ink-soft);
+    text-transform:uppercase; margin-bottom:14px;
+  }
+  .section-title{
+    font-size:13px; font-weight:700; color:var(--ink); margin:28px 0 12px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .section-title:first-of-type{ margin-top:0; }
+
+  /* Métricas */
+  .metrics{ display:flex; gap:14px; margin-bottom:8px; flex-wrap:wrap; }
+  .metric-card{
+    flex:1; min-width:200px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .metric-label{ font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:6px; }
+  .metric-value{ font-size:24px; font-weight:800; color:var(--habi-purple-dark); }
+  .metric-sub{ font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+
+  .estimate-card{
+    background: linear-gradient(135deg, var(--habi-purple) 0%, var(--habi-purple-dark) 100%);
+    border-radius:var(--radius); padding:20px 24px; margin-bottom:26px; color:#fff;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  }
+  .estimate-label{ font-size:12.5px; font-weight:700; opacity:.85; text-transform:uppercase; letter-spacing:.06em; }
+  .estimate-value{ font-size:32px; font-weight:800; margin-top:4px; }
+  .estimate-note{ font-size:12px; opacity:.85; max-width:340px; text-align:right; line-height:1.5; }
+
+  .monthly-grid{ display:flex; gap:14px; margin-bottom:26px; flex-wrap:wrap; }
+  .month-card{
+    flex:1; min-width:280px; background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px;
+  }
+  .month-card-title{ font-size:13px; font-weight:700; color:var(--ink); margin-bottom:2px; }
+  .month-card-sub{ font-size:11px; color:var(--ink-soft); margin-bottom:14px; }
+  .month-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:12.5px; }
+  .month-row:last-child{ margin-bottom:0; }
+  .month-label{ width:60px; flex:none; color:var(--ink); font-weight:600; }
+  .month-track{ flex:1; height:8px; background:#EEF0F2; border-radius:99px; overflow:hidden; }
+  .month-fill{ height:100%; border-radius:99px; background:var(--habi-purple); }
+  .month-fill.pending{ background:var(--amber); }
+  .month-value{ width:72px; text-align:right; color:var(--ink-soft); font-weight:700; flex:none; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:20px; border-bottom:1px solid var(--line); }
+  .tab-btn{
+    border:none; background:none; color:var(--ink-soft); font-size:13.5px; font-weight:700;
+    padding:10px 16px; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px;
+  }
+  .tab-btn:hover{ color:var(--ink); }
+  .tab-btn.active{ color:var(--habi-purple); border-bottom-color:var(--habi-purple); }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .metrics-toolbar{ display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+  .metrics-toolbar label{ font-size:12.5px; color:var(--ink-soft); font-weight:600; }
+  .metrics-count{ font-size:12px; color:var(--ink-soft); }
+  .chart-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 20px; margin-bottom:18px;
+  }
+  .chart-card-title{ font-size:13px; font-weight:700; color:var(--ink); margin-bottom:14px; }
+  .chart-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:12.5px; }
+  .chart-row:last-child{ margin-bottom:0; }
+  .chart-label{ width:190px; flex:none; }
+  .chart-track{ flex:1; height:16px; background:#EEF0F2; border-radius:6px; overflow:hidden; }
+  .chart-fill{ height:100%; border-radius:6px; }
+  .chart-value{ width:90px; text-align:right; color:var(--ink-soft); font-weight:700; flex:none; }
+
+  .analista-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px 18px; margin-bottom:22px;
+  }
+  .analista-title{ font-size:12px; color:var(--ink-soft); font-weight:600; margin-bottom:12px; }
+  .analista-select{
+    border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:13px;
+    font-family:inherit; color:var(--ink-soft); font-weight:600; background:#fff; min-width:170px;
+    cursor:pointer;
+  }
+  .analista-select:focus{ outline:none; border-color:var(--habi-purple); }
+  .analista-row{ display:flex; align-items:center; gap:10px; margin-bottom:9px; font-size:12.5px; }
+  .analista-row:last-child{ margin-bottom:0; }
+  .analista-name{ width:150px; flex:none; color:var(--ink); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .analista-track{ flex:1; height:8px; background:#EEF0F2; border-radius:99px; overflow:hidden; }
+  .analista-fill{ height:100%; background:var(--habi-purple); border-radius:99px; }
+  .analista-count{ width:26px; text-align:right; color:var(--ink-soft); font-weight:700; flex:none; }
+
+  .summary{ display:flex; gap:14px; margin-bottom:22px; flex-wrap:wrap; }
+  .sum-card{
+    flex:1; min-width:180px; border-radius:var(--radius); padding:16px 18px;
+    display:flex; align-items:center; gap:10px; border:1px solid transparent;
+    cursor:pointer; transition:transform .12s ease, box-shadow .12s ease;
+    background:var(--card); border:1px solid var(--line);
+  }
+  .sum-card:hover{ transform:translateY(-1px); box-shadow:0 4px 14px rgba(17,24,39,.06); }
+  .sum-card.active{ box-shadow:0 0 0 2px var(--habi-purple) inset; }
+  .dot{ width:10px; height:10px; border-radius:50%; flex:none; }
+  .sum-text{ display:flex; flex-direction:column; }
+  .sum-label{ font-size:13px; color:var(--ink-soft); font-weight:600; }
+  .sum-count{ font-size:22px; font-weight:700; }
+  .c-green .dot{ background:var(--green);} .c-green .sum-count{ color:var(--green); }
+  .c-amber .dot{ background:var(--amber);} .c-amber .sum-count{ color:var(--amber); }
+  .c-red   .dot{ background:var(--red);}   .c-red   .sum-count{ color:var(--red); }
+
+  .toolbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+  .filters{ display:flex; gap:8px; flex-wrap:wrap; }
+  .search-box{
+    display:flex; align-items:center; gap:8px; background:var(--card);
+    border:1px solid var(--line); border-radius:999px; padding:8px 14px;
+    min-width:250px; color:var(--ink-soft); transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .search-box:focus-within{ border-color:var(--habi-purple); box-shadow:0 0 0 3px rgba(109,40,217,.10); }
+  .search-box input{
+    border:none; outline:none; font-size:13.5px; flex:1; background:transparent; color:var(--ink);
+    font-family:inherit;
+  }
+  .search-box input::placeholder{ color:#9CA3AF; }
+  .search-box button{
+    border:none; background:none; color:#9CA3AF; font-size:11px; cursor:pointer; padding:2px;
+    display:none; line-height:1;
+  }
+  .search-box.has-text button{ display:block; }
+  .search-box.has-text button:hover{ color:var(--ink); }
+  .no-results{ padding:32px 16px; text-align:center; color:var(--ink-soft); font-size:13.5px; }
+  .pill{
+    border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+    font-size:13px; font-weight:600; padding:8px 14px; border-radius:999px;
+    cursor:pointer; user-select:none; transition:.12s ease;
+  }
+  .pill:hover{ border-color:#c7cad0; }
+  .pill.active{ background:var(--habi-purple); color:#fff; border-color:var(--habi-purple); }
+
+  .table-card{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .table-scroll{ overflow-x:auto; max-height:640px; overflow-y:auto; }
+  table{ border-collapse:collapse; width:100%; min-width:1120px; }
+  thead th{
+    text-align:left; font-size:11px; letter-spacing:.05em; text-transform:uppercase;
+    color:var(--ink-soft); font-weight:700; padding:12px 16px; border-bottom:1px solid var(--line);
+    white-space:nowrap; position:sticky; top:0; background:var(--card); z-index:2;
+  }
+  tbody td{
+    padding:14px 16px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle;
+    white-space:nowrap;
+  }
+  tbody tr:last-child td{ border-bottom:none; }
+  tbody tr:hover{ background:#FAFBFC; }
+
+  .nid{ color:var(--ink-soft); font-variant-numeric:tabular-nums; font-size:12.5px; }
+  .clickable{ cursor:pointer; font-weight:700; color:var(--ink); }
+  .clickable:hover{ color:var(--habi-purple); text-decoration:underline; }
+  .conjunto{ color:var(--ink-soft); font-size:12.5px; display:block; margin-top:1px; font-weight:400;}
+
+  .badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
+    padding:4px 10px; border-radius:999px; white-space:nowrap;
+  }
+  .b-green{ background:var(--green-bg); color:var(--green); }
+  .b-amber{ background:var(--amber-bg); color:var(--amber); }
+  .b-red{ background:var(--red-bg); color:var(--red); }
+  .b-gray{ background:#F1F2F4; color:var(--ink-soft); }
+  .b-blue{ background:var(--blue-bg); color:var(--blue); }
+  .b-purple{ background:#F3EEFD; color:var(--habi-purple); }
+  .b-brown{ background:#F1E4DC; color:#7C4A2D; }
+  .b-navy{ background:#E0ECFB; color:#1E3A8A; }
+  .b-final{ background:var(--habi-purple); color:#fff; }
+  .b-salmon{ background:#FDE9DE; color:#C2410C; }
+  .b-pink{ background:#FCE4F1; color:#BE185D; }
+  .clickable-badge{ cursor:pointer; transition:transform .1s ease, box-shadow .1s ease; }
+  .clickable-badge:hover{ transform:translateY(-1px); box-shadow:0 2px 6px rgba(0,0,0,.15); }
+
+  .sla{ display:flex; flex-direction:column; gap:4px; min-width:78px; }
+  .sla-track{ width:100%; height:5px; border-radius:99px; background:#EEF0F2; overflow:hidden; }
+  .sla-fill{ height:100%; border-radius:99px; }
+  .sla-txt{ font-size:11.5px; color:var(--ink-soft); }
+
+  .val{ font-weight:700; }
+  .muted{ color:var(--ink-soft); }
+  .footer-note{ margin-top:14px; font-size:11.5px; color:#9CA3AF; text-align:center; }
+
+  /* Modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(17,24,39,.45); display:none;
+    align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .overlay.show{ display:flex; }
+  .modal{
+    background:#fff; border-radius:14px; width:100%; max-width:420px;
+    padding:22px 22px 18px; box-shadow:0 20px 50px rgba(17,24,39,.25);
+    max-height:88vh; overflow-y:auto;
+  }
+  .modal-head{
+    display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;
+  }
+  .modal-title{ font-size:17px; font-weight:800; color:var(--habi-purple-dark); }
+  .modal-sub{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .modal-close{ border:none; background:#F1F2F4; width:28px; height:28px; border-radius:50%; cursor:pointer; font-size:14px; color:var(--ink-soft); }
+  .modal-row{ display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:13.5px; gap:12px; }
+  .modal-row:last-of-type{ border-bottom:none; }
+  .modal-row span:first-child{ color:var(--ink-soft); flex:none; }
+  .modal-row span:last-child{ font-weight:600; text-align:right; }
+  .comment-box{ margin-top:12px; background:#F7F8FA; border-radius:8px; padding:12px; font-size:13px; color:var(--ink); line-height:1.5; }
+  .comment-label{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700; margin-bottom:6px; }
+  .comment-input{
+    width:100%; border:1px solid var(--line); border-radius:8px; padding:10px; font-size:13px;
+    font-family:inherit; color:var(--ink); resize:vertical; margin-bottom:8px; background:#fff;
+  }
+  .comment-input:focus{ outline:none; border-color:var(--habi-purple); }
+  .comment-save{ width:100%; text-align:center; }
+  .comment-history{ max-height:150px; overflow-y:auto; margin-bottom:12px; }
+  .comment-entry{
+    background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+    font-size:12.5px; line-height:1.5; margin-bottom:6px; color:var(--ink);
+  }
+  .comment-entry:last-child{ margin-bottom:0; }
+  .comment-entry .cdate{ font-weight:700; color:var(--habi-purple); margin-right:6px; }
+  .comment-empty{ font-size:12.5px; color:var(--ink-soft); font-style:italic; }
+  .comment-new{ border-top:1px dashed var(--line); padding-top:10px; }
+  .comment-new-row{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .comment-new-row label{ font-size:12.5px; color:var(--ink-soft); }
+  .comment-new-row input[type="date"]{
+    border:1px solid var(--line); border-radius:6px; padding:5px 8px; font-size:12.5px; font-family:inherit;
+  }
+  .req{ color:var(--red); }
+
+  .edit-section{ margin-top:14px; padding-top:14px; border-top:1px solid var(--line); }
+  .edit-title{ font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:700; margin-bottom:10px; }
+  .edit-row{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .edit-row label{ font-size:12.5px; color:var(--ink-soft); width:120px; flex:none; }
+  .edit-row input[type="date"], .edit-row input[type="text"], .edit-select{
+    flex:1; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:12.5px;
+    font-family:inherit; color:var(--ink); background:#fff;
+  }
+  .edit-save{
+    border:none; background:var(--habi-purple); color:#fff; font-size:12px; font-weight:700;
+    padding:6px 12px; border-radius:6px; cursor:pointer; flex:none;
+  }
+  .edit-save:hover{ background:var(--habi-purple-dark); }
+  .edit-save:disabled{ opacity:.5; cursor:default; }
+  .t-edit-save{
+    border:none; background:var(--habi-purple); color:#fff; font-size:12px; font-weight:700;
+    padding:6px 12px; border-radius:6px; cursor:pointer; flex:none;
+  }
+  .t-edit-save:hover{ background:var(--habi-purple-dark); }
+  .t-edit-save:disabled{ opacity:.5; cursor:default; }
+  .edit-quick{ margin-top:10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .edit-quick-label{ font-size:12px; color:var(--ink-soft); margin-right:2px; }
+  .quick-btn{
+    border:1px solid var(--habi-purple); background:#fff; color:var(--habi-purple); font-size:11.5px;
+    font-weight:700; padding:5px 10px; border-radius:999px; cursor:pointer;
+  }
+  .quick-btn:hover{ background:var(--habi-purple); color:#fff; }
+  .edit-status{ margin-top:10px; font-size:12px; min-height:16px; }
+  .edit-status.ok{ color:var(--green); }
+  .edit-status.err{ color:var(--red); }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="habi-logo">
+    <svg class="habi-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 6
+               C46 6 43 8 41 11
+               L24 36
+               C20 41 19 45 19 50
+               L19 78
+               C19 85 24 90 31 90
+               L69 90
+               C76 90 81 85 81 78
+               L81 50
+               C81 45 80 41 76 36
+               L59 11
+               C57 8 54 6 50 6 Z" fill="url(#habiGrad)"/>
+      <circle cx="78" cy="12" r="6.5" fill="var(--habi-coral)"/>
+      <text x="50" y="70" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="30" fill="#ffffff" letter-spacing="-1">habi</text>
+      <defs>
+        <linearGradient id="habiGrad" x1="19" y1="4" x2="81" y2="97" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#9F6BF0"/>
+          <stop offset="1" stop-color="#5B21B6"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  </div>
+  <div class="topbar-title">Trámites Inmobiliaria</div>
+  <div class="topbar-right">
+    <div class="sync-status" id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">Conectando…</span></div>
+    <button class="refresh-btn" id="refresh-btn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      Actualizar
+    </button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="eyebrow">Semáforo de gestión · Trámites Inmobiliaria</div>
+
+  <div class="banner" id="banner">⚠️ No se pudo conectar en vivo al Google Sheet — mostrando datos de ejemplo.</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="resumen">📋 Registro</button>
+    <button class="tab-btn" data-tab="mensual">📊 Desembolsos por mes</button>
+    <button class="tab-btn" data-tab="metricas">📈 Métricas</button>
+    <button class="tab-btn" data-tab="tramites">🏗️ Trámites</button>
+    <button class="tab-btn" data-tab="tramites-metricas">📈 Métricas Trámites</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-resumen">
+    <div class="section-title">Métricas generales</div>
+    <div class="metrics" id="metrics"></div>
+
+    <div class="estimate-card" id="estimate-card"></div>
+
+    <div class="section-title">Semáforo de gestión (SLA 7 días hábiles)</div>
+    <div class="summary" id="summary"></div>
+
+    <div class="toolbar">
+      <select class="analista-select" id="filters"></select>
+      <select class="analista-select" id="analista-filter"></select>
+      <select class="analista-select" id="year-filter"></select>
+      <select class="analista-select" id="month-filter"></select>
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="search" placeholder="Buscar por NID o cliente…" autocomplete="off">
+        <button id="search-clear" title="Limpiar">✕</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>NID</th>
+              <th>Cliente / Conjunto</th>
+              <th>Analista</th>
+              <th>Estado desembolso</th>
+              <th>Fecha gestión</th>
+              <th>SLA (7d hábiles)</th>
+              <th>Semáforo</th>
+              <th>Valor desembolso</th>
+              <th>Banco</th>
+              <th>Facturación</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="footer-note" id="footer-note"></div>
+  </div>
+
+  <div class="tab-panel" id="tab-mensual">
+    <div class="section-title">Desembolsos por mes</div>
+    <div class="monthly-grid">
+      <div class="month-card">
+        <div class="month-card-title">💜 Desembolsado (real)</div>
+        <div class="month-card-sub">Según fecha de desembolso registrada</div>
+        <div id="monthly-desembolsado"></div>
+      </div>
+      <div class="month-card">
+        <div class="month-card-title">🕒 Pendiente (estimado)</div>
+        <div class="month-card-sub">Según mes de fecha de gestión — sujeto a cambios</div>
+        <div id="monthly-pendiente"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-metricas">
+    <div class="section-title">Distribución por etapa</div>
+    <div class="metrics-toolbar">
+      <label for="metrics-year-filter">Año:</label>
+      <select class="analista-select" id="metrics-year-filter"></select>
+      <label for="metrics-month-filter">Mes (según fecha de gestión):</label>
+      <select class="analista-select" id="metrics-month-filter"></select>
+      <span class="metrics-count" id="metrics-chart-count"></span>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Cantidad de casos por etapa</div>
+      <div id="etapa-chart-count"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Valor total por etapa</div>
+      <div id="etapa-chart-valor"></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-tramites">
+    <div class="eyebrow">Semáforo de gestión · Trámites Notariales</div>
+
+    <div class="banner" id="t-banner">⚠️ No se pudo conectar en vivo al Google Sheet — mostrando datos de ejemplo.</div>
+
+    <div class="section-title">Semáforo de gestión (SLA 3 días hábiles)</div>
+    <div class="summary" id="t-summary"></div>
+
+    <div class="section-title">Métricas por analista</div>
+    <div class="chart-card">
+      <div class="chart-card-title">Negocios a tiempo / próximos a vencer / vencidos, por analista</div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Analista</th>
+              <th>🟢 A tiempo</th>
+              <th>🟡 Próximo a vencer</th>
+              <th>🔴 Vencido</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="t-analista-metrics"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <select class="analista-select" id="t-analista-filter"></select>
+      <select class="analista-select" id="t-entidad-filter"></select>
+      <select class="analista-select" id="t-estado-filter"></select>
+      <select class="analista-select" id="t-sem-filter">
+        <option value="todos">Todos los semáforos</option>
+        <option value="sem-verde">🟢 A tiempo</option>
+        <option value="sem-amarillo">🟡 Próximo a vencer</option>
+        <option value="sem-rojo">🔴 Vencido</option>
+      </select>
+      <button class="refresh-btn" id="t-clear-filters">✕ Limpiar filtros</button>
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="t-search" placeholder="Buscar por NID o proyecto…" autocomplete="off">
+        <button id="t-search-clear" title="Limpiar">✕</button>
+      </div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>NID</th>
+              <th>Proyecto</th>
+              <th>Analista</th>
+              <th>Entidad financiera</th>
+              <th>Estado</th>
+              <th>Banco</th>
+              <th>Etapa legalización</th>
+              <th>Fecha gestión</th>
+              <th>SLA (3d hábiles)</th>
+              <th>Semáforo</th>
+            </tr>
+          </thead>
+          <tbody id="t-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="footer-note" id="t-footer-note"></div>
+  </div>
+
+  <div class="tab-panel" id="tab-tramites-metricas">
+    <div class="eyebrow">Métricas · Trámites Notariales</div>
+
+    <div class="section-title">Semáforo de gestión (SLA 3 días hábiles)</div>
+    <div class="summary" id="t2-summary"></div>
+
+    <div class="section-title">Métricas por analista</div>
+    <div class="chart-card">
+      <div class="chart-card-title">Negocios a tiempo / próximos a vencer / vencidos, por analista</div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Analista</th>
+              <th>🟢 A tiempo</th>
+              <th>🟡 Próximo a vencer</th>
+              <th>🔴 Vencido</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody id="t2-analista-metrics"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-title">Etapa de legalización por analista</div>
+    <div class="chart-card">
+      <div class="chart-card-title">Cantidad de negocios en cada etapa, por analista</div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr id="t-etapalegal-head"></tr>
+          </thead>
+          <tbody id="t-etapalegal-matrix"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="t-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="t-m-proyecto"></div>
+        <div class="modal-sub" id="t-m-nid"></div>
+      </div>
+      <button class="modal-close" onclick="closeTramitesModal()">✕</button>
+    </div>
+    <div class="modal-row"><span>Vendedor</span><span id="t-m-vendedor"></span></div>
+    <div class="modal-row"><span>Cédula vendedor</span><span id="t-m-cc-vendedor"></span></div>
+    <div class="modal-row"><span>Comprador</span><span id="t-m-comprador"></span></div>
+    <div class="modal-row"><span>Cédula comprador</span><span id="t-m-cc-comprador"></span></div>
+    <div class="modal-row"><span>Dirección</span><span id="t-m-direccion"></span></div>
+    <div class="modal-row"><span>Ciudad</span><span id="t-m-ciudad"></span></div>
+    <div class="modal-row"><span>Folio de matrícula</span><span id="t-m-folio"></span></div>
+    <div class="modal-row"><span>Oficina de registro</span><span id="t-m-oficina"></span></div>
+    <div class="edit-section">
+      <div class="edit-title">Actualizar</div>
+      <div class="edit-row">
+        <label>Notaría</label>
+        <input type="text" id="t-edit-notaria" placeholder="Nombre de la notaría">
+        <button class="t-edit-save" data-field="notaria">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Número escritura</label>
+        <input type="text" id="t-edit-escritura" placeholder="Número de escritura">
+        <button class="t-edit-save" data-field="escritura">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Entidad financiera</label>
+        <select id="t-edit-entidad" class="edit-select"></select>
+        <button class="t-edit-save" data-field="entidad">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Estado</label>
+        <select id="t-edit-estado" class="edit-select"></select>
+        <button class="t-edit-save" data-field="estado">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Banco</label>
+        <input type="text" id="t-edit-banco" placeholder="Nombre del banco">
+        <button class="t-edit-save" data-field="banco">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Etapa legalización</label>
+        <select id="t-edit-etapalegal" class="edit-select"></select>
+        <button class="t-edit-save" data-field="etapaLegal">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Fecha de gestión</label>
+        <input type="date" id="t-edit-fechagestion">
+        <button class="t-edit-save" data-field="fechaGestion">Guardar</button>
+      </div>
+      <div class="edit-status" id="t-edit-status"></div>
+    </div>
+    <div class="comment-box">
+      <div class="comment-label">Historial de observaciones (columna OBSERVACION TRAMITES)</div>
+      <div id="t-comment-history" class="comment-history"></div>
+      <div class="comment-new">
+        <div class="comment-new-row">
+          <label>Fecha <span class="req">*</span></label>
+          <input type="date" id="t-new-comment-date">
+        </div>
+        <textarea id="t-new-comment-text" class="comment-input" rows="2" placeholder="Escribe una nueva observación…"></textarea>
+        <button class="t-edit-save comment-save" id="t-add-comment-btn">Agregar observación</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="m-nombre"></div>
+        <div class="modal-sub" id="m-nid"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-row"><span>Nombre del conjunto</span><span id="m-conjunto"></span></div>
+    <div class="modal-row"><span>Folio de matrícula</span><span id="m-folio"></span></div>
+    <div class="modal-row"><span>Notaría / Escritura</span><span id="m-notaria"></span></div>
+    <div class="modal-row"><span>Banco</span><span id="m-banco"></span></div>
+    <div class="modal-row"><span>Etapa actual</span><span id="m-estado"></span></div>
+    <div class="edit-section">
+      <div class="edit-title">Actualizar</div>
+      <div class="edit-row">
+        <label>¿Desembolso mixto?</label>
+        <select id="edit-mixto" class="edit-select">
+          <option value="No">No</option>
+          <option value="Sí">Sí</option>
+        </select>
+        <button class="edit-save" data-field="mixto">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Etapa</label>
+        <select id="edit-etapa" class="edit-select"></select>
+        <button class="edit-save" data-field="etapa">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Facturación</label>
+        <select id="edit-facturacion" class="edit-select"></select>
+        <button class="edit-save" data-field="facturacion">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Fecha de boleta</label>
+        <input type="date" id="edit-fechaBoleta">
+        <button class="edit-save" data-field="fechaBoleta">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Fecha de CTL</label>
+        <input type="date" id="edit-fechaCTL">
+        <button class="edit-save" data-field="fechaCTL">Guardar</button>
+      </div>
+      <div class="edit-row">
+        <label>Fecha desembolso</label>
+        <input type="date" id="edit-fechaDesembolso">
+        <button class="edit-save" data-field="fechaDesembolso">Guardar</button>
+      </div>
+      <div class="edit-status" id="edit-status"></div>
+    </div>
+    <div class="comment-box">
+      <div class="comment-label">Historial de comentarios</div>
+      <div id="comment-history" class="comment-history"></div>
+      <div class="comment-new">
+        <div class="comment-new-row">
+          <label>Fecha <span class="req">*</span></label>
+          <input type="date" id="new-comment-date">
+        </div>
+        <textarea id="new-comment-text" class="comment-input" rows="2" placeholder="Escribe un nuevo comentario…"></textarea>
+        <button class="edit-save comment-save" id="add-comment-btn">Agregar comentario</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIGURACIÓN — conexión en vivo al Google Sheet
+   Usamos JSONP (carga vía <script>) como método principal porque no pasa por
+   las restricciones de CORS que sí bloquean un fetch() normal a docs.google.com.
+   Requiere que la hoja tenga acceso "Cualquier persona con el enlace, Lector".
+   ========================================================================= */
+const SHEET_ID = "1is7ONCylSp_PeQAXuSzN5CwST1FlmXgaCSS0j53tkSE";
+const GID = "1377905845";
+const GVIZ_JSONP_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?gid=${GID}&headers=1&tqx=out:json;responseHandler:__gvizCallback`;
+const CSV_URLS = [
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}`,
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRASxd9qEIWfyz8GHVTP797C3gqA148jWAd8o5YDXe8dJIgdFz5rTSfqRJHWdJdHNEp0A_wWYKCahhc/pub?gid=1377905845&single=true&output=csv"
+];
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 minutos
+const SLA_DIAS = 7;
+// URL del Web App de Apps Script (ver apps_script_tablero_backend.gs.txt para instalarlo).
+// Déjalo vacío ("") mientras no lo hayas desplegado — los botones de guardar se deshabilitan solos.
+const WEBAPP_URL = "https://script.google.com/macros/s/AKfycbzL9KM73jF71bzs0NDhqtcMikq78f0sbiAfkE1lHC2HQosdF8BxPcpCmP1pnyxV_mTj/exec";
+
+// ---- Datos de ejemplo (respaldo si la conexión en vivo falla) ----
+const sampleData = [
+  { nid:"19338661724", cliente:"Yudis Alvarado Cassaleth", conjunto:"Madeira", analista:"Michael Barragán", tipo:"Compraventa", notaria:"—", banco:"—", fechaGestion:"2026-07-24", fechaBoleta:"2024-12-06", fechaCTL:"2024-12-19", fechaDesembolso:"", valor:82000000, comentario:"Falta confirmación de la notaría para agendar firma de CTL." },
+  { nid:"19006704698", cliente:"Diocelina Roncancio", conjunto:"Fontana 2", analista:"Michael Barragán", tipo:"Compraventa", notaria:"—", banco:"—", fechaGestion:"2026-07-27", fechaBoleta:"2024-12-10", fechaCTL:"2024-12-19", fechaDesembolso:"", valor:65000000, comentario:"Cliente solicitó reprogramar cita de firma." },
+  { nid:"12830522633", cliente:"Ricardo González Tausa", conjunto:"Albahaca", analista:"Michael Barragán", tipo:"Compraventa", notaria:"—", banco:"—", fechaGestion:"2026-07-18", fechaBoleta:"2024-12-10", fechaCTL:"2025-01-30", fechaDesembolso:"", valor:41000000, comentario:"CTL registrado, a la espera de que tesorería programe el giro." },
+  { nid:"19245871124", cliente:"John Byron Velásquez", conjunto:"Captación automática", analista:"Michael Barragán", tipo:"Desembolso mixto", notaria:"—", banco:"—", fechaGestion:"2026-07-10", fechaBoleta:"2024-12-12", fechaCTL:"2025-02-27", fechaDesembolso:"", valor:57000000, comentario:"Desembolso mixto: sigue la misma regla que boleta estándar." },
+  { nid:"7865808925",  cliente:"Luz Mery Rivera", conjunto:"Tekto San Marcos", analista:"Ivonne Merchán", tipo:"Compraventa", notaria:"—", banco:"—", fechaGestion:"2026-07-29", fechaBoleta:"2024-12-12", fechaCTL:"2024-12-09", fechaDesembolso:"2026-07-30", valor:93000000, comentario:"Proceso cerrado sin novedades." },
+  { nid:"16954966953", cliente:"Jaime Geovanny Mejía", conjunto:"Multifamiliares Tayrona", analista:"Ivonne Merchán", tipo:"Compraventa", notaria:"—", banco:"—", fechaGestion:"2026-07-08", fechaBoleta:"2024-12-13", fechaCTL:"2025-01-22", fechaDesembolso:"", valor:38500000, comentario:"Retraso por documentación adicional solicitada por el banco." }
+];
+
+const analistaDict = {
+  michaelbarragan: "Michael Barragán",
+  ivonnemerchan: "Ivonne Merchán",
+  dianalugo: "Diana Lugo",
+  juliootalora: "Julio Otálora",
+  lauraleguizamon: "Laura Leguizamón"
+};
+
+let enriched = [];
+let usingLiveData = false;
+
+// ---- Utilidades ----
+function normalizeHeader(s){
+  return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[¿?]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+}
+function findColIndex(headers, exactCandidates, containsCandidates){
+  const norm = headers.map(normalizeHeader);
+  for(const c of exactCandidates){
+    const i = norm.indexOf(normalizeHeader(c));
+    if(i !== -1) return i;
+  }
+  for(const c of containsCandidates || []){
+    const i = norm.findIndex(h => h.includes(normalizeHeader(c)));
+    if(i !== -1) return i;
+  }
+  return -1;
+}
+function parseCSV(text){
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for(let i=0; i<text.length; i++){
+    const c = text[i], next = text[i+1];
+    if(inQuotes){
+      if(c === '"' && next === '"'){ field += '"'; i++; }
+      else if(c === '"'){ inQuotes = false; }
+      else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ','){ row.push(field); field=""; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function extractCliente1(text){
+  if(!text) return "";
+  const m = text.match(/cliente\s*1\.?\s*(.*?)\s*cliente\s*2\./i);
+  const raw = m ? m[1] : text.replace(/cliente\s*1\.?\s*/i,"");
+  return titleCase(raw.trim());
+}
+function titleCase(str){
+  return (str||"").toLowerCase().split(" ").filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+function analistaName(raw){
+  if(!raw) return "Sin asignar";
+  const prefix = raw.split("@")[0].trim().toLowerCase();
+  return analistaDict[prefix] || titleCase(prefix);
+}
+function parseFecha(str){
+  if(!str) return "";
+  let s = str.trim();
+  if(!s) return "";
+  // Placeholders vacíos que a veces devuelve Sheets para celdas de fecha sin valor
+  if(/^d\/?m\/?y+$/i.test(s)) return "";
+
+  // Si viene texto pegado (ej. "33/8/2026" donde el "3" es de otra celda que
+  // se comió el espacio), nos quedamos con el primer patrón de fecha válido
+  // que aparezca en el string, sea con "/" o con "-".
+  const slashMatch = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  const dashMatch = s.match(/(\d{1,2})-(\d{1,2})-(\d{4})/);
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if(isoMatch && s.indexOf(isoMatch[0]) === 0){
+    return s.slice(0,10);
+  }
+  if(slashMatch){
+    const [, d, mo, y] = slashMatch;
+    if(+mo <= 12 && +d <= 31) return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+  }
+  if(dashMatch){
+    const [, d, mo, y] = dashMatch;
+    if(+mo <= 12 && +d <= 31) return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
+  }
+  return "";
+}
+function parseValor(str){
+  if(!str) return 0;
+  let s = str.trim().replace(/[^\d.,-]/g, "");
+  if(!s) return 0;
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+  if(lastComma > -1 && lastDot > -1){
+    if(lastComma > lastDot){ s = s.replace(/\./g,"").replace(",", "."); }
+    else { s = s.replace(/,/g,""); }
+  } else if(lastComma > -1){
+    const parts = s.split(",");
+    if(parts.length > 1 && parts[parts.length-1].length === 3){ s = s.replace(/,/g,""); }
+    else { s = s.replace(",", "."); }
+  } else if(lastDot > -1){
+    const parts = s.split(".");
+    if(parts.length > 1 && parts[parts.length-1].length === 3){ s = s.replace(/\./g,""); }
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+function fmtFecha(f){
+  if(!f) return "—";
+  const [y,m,d] = f.split("-");
+  return `${d}/${m}/${y}`;
+}
+function fmtValor(v){
+  if(!v) return "—";
+  return "$" + (v/1000000).toFixed(1).replace(".0","") + "M";
+}
+
+// ---- Mapeo de una fila cruda del CSV a nuestro modelo ----
+function mapRow(cols, idx){
+  const get = k => (idx[k] !== -1 ? (cols[idx[k]] || "").trim() : "");
+  const nid = get("nid");
+  if(!nid || !/\d/.test(nid)) return null;
+
+  const fechaBoleta = parseFecha(get("fechaBoleta"));
+  const fechaCTL = parseFecha(get("fechaCTL"));
+  const fechaDesembolso = parseFecha(get("fechaDesembolso"));
+  const fechaGestion = parseFecha(get("fechaGestion"));
+  const esMixto = get("mixto").toLowerCase().startsWith("s");
+  const etapa = get("etapa").toUpperCase().trim() || "SIN ETAPA";
+  const facturacionEstado = get("facturacionEstado").toUpperCase().trim() || "SIN DATO";
+
+  return {
+    nid,
+    cliente: extractCliente1(get("clienteComprador")) || "Sin nombre",
+    conjunto: titleCase(get("conjunto")) || "—",
+    folio: get("folio") || "—",
+    analista: analistaName(get("analista")),
+    tipo: esMixto ? "Desembolso mixto" : "Compraventa",
+    mixto: esMixto ? "Sí" : "No",
+    notaria: [get("notaria"), get("escritura")].filter(Boolean).join(" · ") || "—",
+    banco: get("banco") || "—",
+    fechaGestion, fechaBoleta, fechaCTL, fechaDesembolso,
+    valor: parseValor(get("valor")),
+    comentario: get("comentario") || "Sin comentarios.",
+    etapa,
+    facturacionEstado
+  };
+}
+
+function esFinDeSemana(d){
+  const dow = d.getDay(); // 0=domingo, 6=sábado
+  return dow === 0 || dow === 6;
+}
+// Cuenta cuántos días HÁBILES (lunes a viernes) han pasado desde fechaStr
+// (formato "YYYY-MM-DD") hasta hoy. No cuenta sábados ni domingos.
+function diasHabilesDesde(fechaStr, hoy){
+  if(!fechaStr) return null;
+  const from = new Date(fechaStr + "T00:00:00");
+  const to = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  if(to <= from) return 0;
+  let count = 0;
+  const cur = new Date(from);
+  cur.setDate(cur.getDate() + 1);
+  while(cur <= to){
+    if(!esFinDeSemana(cur)) count++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return count;
+}
+
+const ETAPAS_COMPLETAS = ["DESEMBOLSADO", "FINALIZADO"];
+
+function enrich(items){
+  const hoy = new Date();
+  return items.map(it=>{
+    let sem = "gris", dias = null;
+    const completo = ETAPAS_COMPLETAS.includes(it.etapa);
+    if(it.fechaGestion){
+      dias = diasHabilesDesde(it.fechaGestion, hoy);
+    }
+    if(completo){
+      sem = "verde";
+    } else if(dias !== null){
+      if(dias > SLA_DIAS) sem = "rojo";
+      else if(dias >= SLA_DIAS - 2) sem = "amarillo";
+      else sem = "verde";
+    } else {
+      sem = "gris";
+    }
+    return {...it, sem, dias};
+  });
+}
+
+// para sampleData: si no trae etapa/facturacionEstado, les da un valor por defecto
+function ensureEstado(it){
+  return {
+    ...it,
+    etapa: it.etapa || "PTE BOLETA",
+    facturacionEstado: it.facturacionEstado || "PTE RUT"
+  };
+}
+
+const etapaBadge = {
+  "PTE BOLETA": "b-amber",
+  "PTE CTL": "b-amber",
+  "RADICADO DESEMBOLSO": "b-blue",
+  "DESEMBOLSADO": "b-green",
+  "PTE LIQUIDACION REGISTRO": "b-purple",
+  "PTE DE RADICAR": "b-brown",
+  "EN FIRMAS DE ENTIDAD": "b-navy",
+  "PTE AVANCE NOTARIA": "b-purple",
+  "CONTADO": "b-amber",
+  "FINALIZADO": "b-final"
+};
+const ETAPA_OPCIONES = ["PTE BOLETA","PTE CTL","RADICADO DESEMBOLSO","DESEMBOLSADO","PTE LIQUIDACION REGISTRO","PTE DE RADICAR","EN FIRMAS DE ENTIDAD","PTE AVANCE NOTARIA","CONTADO","FINALIZADO"];
+
+const facturacionBadge = {
+  "PTE RUT": "b-amber",
+  "PTE PEDIR FACT": "b-green",
+  "FACTURADO": "b-blue",
+  "PTE OTROSI": "b-green",
+  "SOLICITADA FACT": "b-navy",
+  "OK PAGO COMISION": "b-purple"
+};
+const FACTURACION_OPCIONES = ["PTE RUT","PTE PEDIR FACT","FACTURADO","PTE OTROSI","SOLICITADA FACT","OK PAGO COMISION"];
+
+const semColor = {
+  verde: {cls:"b-green", label:"A tiempo"},
+  amarillo:{cls:"b-amber", label:"Próximo a vencer"},
+  rojo:{cls:"b-red", label:"Vencido"},
+  gris:{cls:"b-gray", label:"Sin gestión"}
+};
+
+// ---- Carga de datos ----
+async function fetchFirstWorking(urls){
+  let lastErr;
+  for(const url of urls){
+    try{
+      const res = await fetch(url, { cache: "no-store" });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if(!text || text.length < 20) throw new Error("Respuesta vacía");
+      return text;
+    } catch(err){
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("Ninguna URL funcionó");
+}
+
+function loadViaJSONP(url, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    let done = false;
+    const cbName = "__gvizCallback";
+    function cleanup(){
+      clearTimeout(timer);
+      delete window[cbName];
+      if(script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data){
+      if(done) return; done = true;
+      resolve(data);
+      cleanup();
+    };
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => { if(done) return; done = true; reject(new Error("Error cargando script JSONP")); cleanup(); };
+    document.body.appendChild(script);
+    const timer = setTimeout(() => { if(done) return; done = true; reject(new Error("Timeout JSONP")); cleanup(); }, timeoutMs || 8000);
+  });
+}
+
+function gvizCellText(cell){
+  if(!cell) return "";
+  if(cell.f !== undefined && cell.f !== null && cell.f !== "") return String(cell.f);
+  if(cell.v === null || cell.v === undefined) return "";
+  return String(cell.v);
+}
+
+function gvizToRows(data){
+  const cols = data.table.cols.map(c => c.label || "");
+  const rows = data.table.rows.map(r => (r.c || []).map(gvizCellText));
+  return [cols, ...rows];
+}
+
+async function loadData(isManual){
+  const btn = document.getElementById("refresh-btn");
+  const dot = document.getElementById("sync-dot");
+  const text = document.getElementById("sync-text");
+  btn.classList.add("spinning");
+  text.textContent = "Actualizando…";
+
+  try{
+    let rows;
+    try{
+      const gvizData = await loadViaJSONP(GVIZ_JSONP_URL, 20000);
+      if(!gvizData || !gvizData.table) throw new Error("Respuesta gviz inválida");
+      rows = gvizToRows(gvizData);
+    } catch(jsonpErr){
+      console.warn("JSONP falló, probando CSV directo:", jsonpErr);
+      const csvText = await fetchFirstWorking(CSV_URLS);
+      rows = parseCSV(csvText);
+    }
+    const headers = rows[0];
+    const idx = {
+      nid: findColIndex(headers, ["NID"]),
+      conjunto: findColIndex(headers, ["NOMBRE CONJUNTO"]),
+      folio: findColIndex(headers, ["FOLIO DE MATRICULA"]),
+      clienteComprador: findColIndex(headers, ["NOMBRE CLIENTES COMPRADOR"]),
+      analista: findColIndex(headers, ["ANALISTA ESCRITURACION"]),
+      mixto: findColIndex(headers, [], ["DESEMBOLSO MIXTO"]),
+      fechaBoleta: findColIndex(headers, ["FECHA DE BOLETA"]),
+      fechaCTL: findColIndex(headers, ["FECHA DE CTL"]),
+      notaria: findColIndex(headers, ["NOTARIA"]),
+      escritura: findColIndex(headers, ["NUMERO DE ESCRITURA"]),
+      banco: findColIndex(headers, ["BANCO"]),
+      fechaDesembolso: findColIndex(headers, ["FECHA DESEMBOLSO"]),
+      valor: findColIndex(headers, ["VALOR DESEMBOLSO"]),
+      fechaGestion: findColIndex(headers, ["FECHA DE GESTION"]),
+      comentario: findColIndex(headers, ["GESTION", "COMENTARIO"]),
+      etapa: findColIndex(headers, ["ETAPAS", "ETAPA"]),
+      facturacionEstado: findColIndex(headers, ["PENDIENTE FACTURACION"])
+    };
+
+    const parsed = rows.slice(1).map(r => mapRow(r, idx)).filter(Boolean);
+    if(parsed.length === 0) throw new Error("Sin filas válidas");
+
+    console.log("🔍 DIAGNÓSTICO — headers encontrados:", headers);
+    console.log("🔍 DIAGNÓSTICO — índices mapeados:", idx);
+    console.log("🔍 DIAGNÓSTICO — primeras 3 filas mapeadas:", parsed.slice(0,3));
+    console.log("🔍 DIAGNÓSTICO — valores crudos de 'valor' y 'fechaGestion' en filas 0-2:",
+      rows.slice(1,4).map(r => ({ valorCrudo: r[idx.valor], fechaGestionCruda: r[idx.fechaGestion] })));
+
+    enriched = enrich(parsed.map(ensureEstado));
+    usingLiveData = true;
+    document.getElementById("banner").classList.remove("show");
+    dot.classList.remove("warn");
+    text.textContent = "Conectado · actualizado " + new Date().toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"});
+  } catch(err){
+    if(enriched.length === 0){
+      enriched = enrich(sampleData.map(ensureEstado));
+    }
+    usingLiveData = false;
+    document.getElementById("banner").classList.add("show");
+    dot.classList.add("warn");
+    text.textContent = "Sin conexión en vivo · datos de ejemplo";
+    console.warn("No se pudo cargar el CSV en vivo:", err);
+  }
+
+  btn.classList.remove("spinning");
+  renderAll();
+}
+
+// ---- Métricas ----
+function computeMetrics(items){
+  let valorDesembolsado = 0, valorPendiente = 0;
+  let slaOk = 0, slaTotal = 0, diasSum = 0, diasCount = 0;
+
+  items.forEach(it=>{
+    if(ETAPAS_COMPLETAS.includes(it.etapa)) valorDesembolsado += it.valor || 0;
+    else valorPendiente += it.valor || 0;
+
+    if(it.fechaGestion){
+      slaTotal++;
+      if(it.sem !== "rojo") slaOk++;
+      diasSum += it.dias; diasCount++;
+    }
+  });
+
+  return {
+    valorDesembolsado, valorPendiente,
+    slaPct: slaTotal ? Math.round((slaOk/slaTotal)*100) : null,
+    tiempoPromedio: diasCount ? (diasSum/diasCount).toFixed(1) : null
+  };
+}
+
+function renderMetrics(items){
+  const m = computeMetrics(items);
+  const el = document.getElementById("metrics");
+  el.innerHTML = `
+    <div class="metric-card">
+      <div class="metric-label">Valor total desembolsado</div>
+      <div class="metric-value">${fmtValor(m.valorDesembolsado)}</div>
+      <div class="metric-sub">Casos con estado "Desembolsado"${currentAnalista !== "todos" ? " · " + currentAnalista : ""}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Valor pendiente por desembolsar</div>
+      <div class="metric-value">${fmtValor(m.valorPendiente)}</div>
+      <div class="metric-sub">Resto de estados en curso</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Cumplimiento de SLA (7 días)</div>
+      <div class="metric-value">${m.slaPct === null ? "—" : m.slaPct + "%"}</div>
+      <div class="metric-sub">${m.slaPct === null ? "Sin casos con fecha de gestión" : "A tiempo vs. vencidos"}</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Tiempo promedio de gestión</div>
+      <div class="metric-value">${m.tiempoPromedio === null ? "—" : m.tiempoPromedio + " d"}</div>
+      <div class="metric-sub">Días desde fecha de gestión</div>
+    </div>
+  `;
+}
+
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+function monthLabel(key){
+  const [y,m] = key.split("-");
+  return MESES[parseInt(m,10)-1] + " " + y;
+}
+function groupByMonth(items, dateField){
+  const map = {};
+  items.forEach(it=>{
+    const d = it[dateField];
+    if(!d) return;
+    const key = d.slice(0,7);
+    map[key] = (map[key]||0) + (it.valor||0);
+  });
+  return Object.entries(map).sort((a,b)=> a[0].localeCompare(b[0]));
+}
+function renderMonthlyPanel(containerId, grouped, pendingStyle){
+  const el = document.getElementById(containerId);
+  if(grouped.length === 0){
+    el.innerHTML = `<div class="muted" style="font-size:12.5px;">Sin datos con fecha registrada.</div>`;
+    return;
+  }
+  const max = Math.max(...grouped.map(([,v]) => v), 1);
+  el.innerHTML = grouped.map(([key, val]) => `
+    <div class="month-row">
+      <div class="month-label">${monthLabel(key)}</div>
+      <div class="month-track"><div class="month-fill${pendingStyle ? " pending" : ""}" style="width:${Math.round((val/max)*100)}%"></div></div>
+      <div class="month-value">${fmtValor(val)}</div>
+    </div>
+  `).join("");
+}
+
+function renderEstimateCard(items){
+  const pendientes = items.filter(it => !ETAPAS_COMPLETAS.includes(it.etapa));
+  const total = pendientes.reduce((sum, it) => sum + (it.valor || 0), 0);
+  const el = document.getElementById("estimate-card");
+  el.innerHTML = `
+    <div>
+      <div class="estimate-label">💰 Estimado de monto a desembolsar</div>
+      <div class="estimate-value">${fmtValor(total)}</div>
+    </div>
+    <div class="estimate-note">Suma de los casos aún no desembolsados (${pendientes.length} de ${items.length}). Es un estimado: puede variar según avance cada trámite.</div>
+  `;
+}
+
+function renderMonthlyBreakdown(items){
+  const desembolsados = items.filter(it => ETAPAS_COMPLETAS.includes(it.etapa) && it.fechaDesembolso);
+  const pendientes = items.filter(it => !ETAPAS_COMPLETAS.includes(it.etapa) && it.fechaGestion);
+  renderMonthlyPanel("monthly-desembolsado", groupByMonth(desembolsados, "fechaDesembolso"), false);
+  renderMonthlyPanel("monthly-pendiente", groupByMonth(pendientes, "fechaGestion"), true);
+}
+
+// ---- Pestaña Métricas: distribución por etapa, filtrable por mes ----
+const ETAPA_COLOR = {
+  "PTE BOLETA": "var(--amber)",
+  "PTE CTL": "var(--amber)",
+  "RADICADO DESEMBOLSO": "var(--blue)",
+  "DESEMBOLSADO": "var(--green)",
+  "PTE LIQUIDACION REGISTRO": "var(--habi-purple)",
+  "PTE DE RADICAR": "#7C4A2D",
+  "EN FIRMAS DE ENTIDAD": "#1E3A8A",
+  "PTE AVANCE NOTARIA": "var(--habi-purple)",
+  "CONTADO": "var(--amber)",
+  "FINALIZADO": "var(--habi-purple-dark)"
+};
+
+let currentMetricsMonth = "todos";
+let currentMetricsYear = "todos";
+
+function renderMetricsYearFilter(){
+  const select = document.getElementById("metrics-year-filter");
+  const previousValue = select.value || currentMetricsYear;
+  const years = Array.from(new Set(
+    enriched.filter(r => r.fechaGestion).map(r => r.fechaGestion.slice(0,4))
+  )).sort();
+  select.innerHTML = `<option value="todos">Todos los años</option>` +
+    years.map(y => `<option value="${y}">${y}</option>`).join("");
+  if(years.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  } else {
+    select.value = "todos";
+    currentMetricsYear = "todos";
+  }
+  select.onchange = () => {
+    currentMetricsYear = select.value;
+    currentMetricsMonth = "todos"; // el año cambió, reseteamos el mes para evitar combinaciones vacías
+    renderMetricsMonthFilter();
+    renderEtapaCharts();
+  };
+}
+
+function renderMetricsMonthFilter(){
+  const select = document.getElementById("metrics-month-filter");
+  const previousValue = select.value || currentMetricsMonth;
+  const months = Array.from(new Set(
+    enriched
+      .filter(r => r.fechaGestion)
+      .filter(r => currentMetricsYear === "todos" || r.fechaGestion.slice(0,4) === currentMetricsYear)
+      .map(r => r.fechaGestion.slice(0,7))
+  )).sort();
+  select.innerHTML = `<option value="todos">Todos los meses</option>` +
+    months.map(key => `<option value="${key}">${monthLabel(key)}</option>`).join("");
+  if(months.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  } else {
+    select.value = "todos";
+    currentMetricsMonth = "todos";
+  }
+  select.onchange = () => {
+    currentMetricsMonth = select.value;
+    renderEtapaCharts();
+  };
+}
+
+function renderEtapaCharts(){
+  let base = currentAnalista === "todos" ? enriched : enriched.filter(r => r.analista === currentAnalista);
+  if(currentMetricsYear !== "todos"){
+    base = base.filter(r => r.fechaGestion && r.fechaGestion.slice(0,4) === currentMetricsYear);
+  }
+  const rows = currentMetricsMonth === "todos"
+    ? base
+    : base.filter(r => r.fechaGestion && r.fechaGestion.slice(0,7) === currentMetricsMonth);
+
+  document.getElementById("metrics-chart-count").textContent =
+    `${rows.length} caso${rows.length === 1 ? "" : "s"}${currentAnalista !== "todos" ? " · " + currentAnalista : ""}`;
+
+  const counts = {}, valores = {};
+  ETAPA_OPCIONES.forEach(e => { counts[e] = 0; valores[e] = 0; });
+  rows.forEach(r=>{
+    const key = ETAPA_OPCIONES.includes(r.etapa) ? r.etapa : null;
+    if(!key) return;
+    counts[key]++;
+    valores[key] += r.valor || 0;
+  });
+
+  const maxCount = Math.max(...Object.values(counts), 1);
+  const countEl = document.getElementById("etapa-chart-count");
+  countEl.innerHTML = ETAPA_OPCIONES.map(e => `
+    <div class="chart-row">
+      <div class="chart-label"><span class="badge ${etapaBadge[e]}">${e}</span></div>
+      <div class="chart-track"><div class="chart-fill" style="width:${Math.round((counts[e]/maxCount)*100)}%; background:${ETAPA_COLOR[e]}"></div></div>
+      <div class="chart-value">${counts[e]}</div>
+    </div>
+  `).join("");
+
+  const maxValor = Math.max(...Object.values(valores), 1);
+  const valorEl = document.getElementById("etapa-chart-valor");
+  valorEl.innerHTML = ETAPA_OPCIONES.map(e => `
+    <div class="chart-row">
+      <div class="chart-label"><span class="badge ${etapaBadge[e]}">${e}</span></div>
+      <div class="chart-track"><div class="chart-fill" style="width:${Math.round((valores[e]/maxValor)*100)}%; background:${ETAPA_COLOR[e]}"></div></div>
+      <div class="chart-value">${fmtValor(valores[e])}</div>
+    </div>
+  `).join("");
+}
+
+// ---- Resumen semáforo ----
+function renderSummary(items){
+  const counts = { verde:0, amarillo:0, rojo:0 };
+  items.forEach(i => { if(counts[i.sem] !== undefined) counts[i.sem]++; });
+
+  const summaryEl = document.getElementById("summary");
+  summaryEl.innerHTML = "";
+  ["verde","amarillo","rojo"].forEach(k=>{
+    const div = document.createElement("div");
+    div.className = `sum-card c-${k}` + (currentFilter === "sem-"+k ? " active" : "");
+    div.innerHTML = `<span class="dot"></span><div class="sum-text"><span class="sum-label">${semColor[k].label}</span><span class="sum-count">${counts[k]}</span></div>`;
+    div.onclick = () => applyFilter("sem-"+k, div);
+    summaryEl.appendChild(div);
+  });
+}
+
+// ---- Filtros ----
+let currentFilter = "todos";
+let currentAnalista = "todos";
+let currentYear = "todos";
+let currentMonth = "todos";
+
+function renderFilters(){
+  const select = document.getElementById("filters");
+  const previousValue = select.value || currentFilter;
+  select.innerHTML = `<option value="todos">Todas las etapas</option>` +
+    ETAPA_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
+  if(previousValue.startsWith("sem-")){
+    select.value = "todos";
+  } else if(ETAPA_OPCIONES.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  }
+  select.onchange = () => {
+    currentFilter = select.value;
+    renderAll();
+  };
+}
+
+function renderAnalistaFilter(){
+  const select = document.getElementById("analista-filter");
+  const previousValue = select.value || currentAnalista;
+  const analistas = Array.from(new Set(enriched.map(r => r.analista))).sort();
+  select.innerHTML = `<option value="todos">Todos los analistas</option>` +
+    analistas.map(name => `<option value="${name}">${name}</option>`).join("");
+  if(analistas.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  }
+  select.onchange = () => {
+    currentAnalista = select.value;
+    renderAll();
+  };
+}
+
+function renderYearFilter(){
+  const select = document.getElementById("year-filter");
+  const previousValue = select.value || currentYear;
+  const years = Array.from(new Set(
+    enriched.filter(r => r.fechaGestion).map(r => r.fechaGestion.slice(0,4))
+  )).sort();
+  select.innerHTML = `<option value="todos">Todos los años</option>` +
+    years.map(y => `<option value="${y}">${y}</option>`).join("");
+  if(years.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  } else {
+    select.value = "todos";
+    currentYear = "todos";
+  }
+  select.onchange = () => {
+    currentYear = select.value;
+    currentMonth = "todos"; // reseteamos el mes al cambiar de año para evitar combinaciones vacías
+    renderMonthFilter();
+    renderAll();
+  };
+}
+
+function renderMonthFilter(){
+  const select = document.getElementById("month-filter");
+  const previousValue = select.value || currentMonth;
+  const months = Array.from(new Set(
+    enriched
+      .filter(r => r.fechaGestion)
+      .filter(r => currentYear === "todos" || r.fechaGestion.slice(0,4) === currentYear)
+      .map(r => r.fechaGestion.slice(0,7))
+  )).sort();
+  select.innerHTML = `<option value="todos">Todos los meses</option>` +
+    months.map(key => `<option value="${key}">${monthLabel(key)}</option>`).join("");
+  if(months.includes(previousValue) || previousValue === "todos"){
+    select.value = previousValue;
+  } else {
+    select.value = "todos";
+    currentMonth = "todos";
+  }
+  select.onchange = () => {
+    currentMonth = select.value;
+    renderAll();
+  };
+}
+
+function applyFilter(key){
+  currentFilter = key;
+  renderAll();
+}
+
+function filteredRows(){
+  return enriched.filter(r=>{
+    if(currentAnalista !== "todos" && r.analista !== currentAnalista) return false;
+    if(currentFilter !== "todos"){
+      if(currentFilter.startsWith("sem-")){
+        if(r.sem !== currentFilter.replace("sem-","")) return false;
+      } else if(r.etapa !== currentFilter){
+        return false;
+      }
+    }
+    if(currentYear !== "todos" && (!r.fechaGestion || r.fechaGestion.slice(0,4) !== currentYear)) return false;
+    if(currentMonth !== "todos" && (!r.fechaGestion || r.fechaGestion.slice(0,7) !== currentMonth)) return false;
+    if(searchTerm){
+      const haystack = (r.nid + " " + r.cliente + " " + r.conjunto).toLowerCase();
+      if(!haystack.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+}
+
+// ---- Búsqueda ----
+let searchTerm = "";
+document.getElementById("search").addEventListener("input", e=>{
+  searchTerm = e.target.value.trim().toLowerCase();
+  document.querySelector(".search-box").classList.toggle("has-text", searchTerm.length > 0);
+  renderAll();
+});
+document.getElementById("search-clear").addEventListener("click", ()=>{
+  const input = document.getElementById("search");
+  input.value = ""; searchTerm = "";
+  document.querySelector(".search-box").classList.remove("has-text");
+  renderAll();
+  input.focus();
+});
+document.getElementById("refresh-btn").addEventListener("click", ()=>loadData(true));
+
+// ---- Pestañas ----
+document.querySelectorAll(".tab-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---- Render tabla ----
+function renderTable(rows){
+  const tbody = document.getElementById("tbody");
+  tbody.innerHTML = "";
+
+  document.getElementById("footer-note").textContent = `Mostrando ${rows.length} de ${enriched.length} registros`;
+
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="no-results">Sin resultados para "${searchTerm}"</td></tr>`;
+    return;
+  }
+
+  rows.forEach(r=>{
+    const tr = document.createElement("tr");
+    const slaPct = r.dias === null ? 0 : Math.min(100, Math.round((r.dias / SLA_DIAS) * 100));
+    const slaColor = r.sem === "rojo" ? "var(--red)" : r.sem === "amarillo" ? "var(--amber)" : "var(--green)";
+
+    tr.innerHTML = `
+      <td class="nid">${r.nid}</td>
+      <td><span class="clickable" data-nid="${r.nid}">${r.cliente}</span><span class="conjunto">${r.conjunto}</span></td>
+      <td class="muted">${r.analista}</td>
+      <td><span class="badge ${etapaBadge[r.etapa] || 'b-gray'}">${r.etapa}</span></td>
+      <td class="muted">${fmtFecha(r.fechaGestion)}</td>
+      <td>
+        <div class="sla">
+          <div class="sla-track"><div class="sla-fill" style="width:${slaPct}%; background:${slaColor}"></div></div>
+          <span class="sla-txt">${r.dias === null ? "sin gestión" : r.dias + "d háb. de " + SLA_DIAS + "d"}</span>
+        </div>
+      </td>
+      <td><span class="badge ${semColor[r.sem].cls}">${semColor[r.sem].label}</span></td>
+      <td class="val">${fmtValor(r.valor)}</td>
+      <td class="muted">${r.banco}</td>
+      <td><span class="badge ${facturacionBadge[r.facturacionEstado] || 'b-gray'}">${r.facturacionEstado}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".clickable").forEach(el=>{
+    el.onclick = () => openModal(el.dataset.nid);
+  });
+}
+
+function renderAll(){
+  renderAnalistaFilter();
+  renderYearFilter();
+  renderMonthFilter();
+  const rows = filteredRows();
+  renderMetrics(rows);
+  renderEstimateCard(rows);
+  renderMonthlyBreakdown(rows);
+  renderSummary(rows);
+  renderFilters();
+  renderTable(rows);
+  renderMetricsYearFilter();
+  renderMetricsMonthFilter();
+  renderEtapaCharts();
+}
+
+// ---- Modal (ficha del registro) ----
+let currentModalNid = null;
+
+function openModal(nid){
+  const r = enriched.find(x=>x.nid===nid);
+  if(!r) return;
+  currentModalNid = nid;
+  document.getElementById("m-nombre").textContent = r.cliente;
+  document.getElementById("m-nid").textContent = "NID " + r.nid;
+  document.getElementById("edit-mixto").value = r.mixto === "Sí" ? "Sí" : "No";
+  document.getElementById("m-conjunto").textContent = r.conjunto;
+  document.getElementById("m-folio").textContent = r.folio;
+  document.getElementById("m-notaria").textContent = r.notaria;
+  document.getElementById("m-banco").textContent = r.banco;
+  document.getElementById("m-estado").textContent = r.etapa;
+  renderCommentHistoryFromArray(syncAndLoadHistory(nid, r.comentario));
+  document.getElementById("new-comment-text").value = "";
+  document.getElementById("new-comment-date").value = new Date().toISOString().slice(0,10);
+  document.getElementById("edit-fechaBoleta").value = r.fechaBoleta || "";
+  document.getElementById("edit-fechaCTL").value = r.fechaCTL || "";
+  document.getElementById("edit-fechaDesembolso").value = r.fechaDesembolso || "";
+
+  const etapaSel = document.getElementById("edit-etapa");
+  etapaSel.innerHTML = ETAPA_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
+  etapaSel.value = ETAPA_OPCIONES.includes(r.etapa) ? r.etapa : ETAPA_OPCIONES[0];
+
+  const facturacionSel = document.getElementById("edit-facturacion");
+  facturacionSel.innerHTML = FACTURACION_OPCIONES.map(e => `<option value="${e}">${e}</option>`).join("");
+  facturacionSel.value = FACTURACION_OPCIONES.includes(r.facturacionEstado) ? r.facturacionEstado : FACTURACION_OPCIONES[0];
+
+  setEditStatus("", "");
+  updateSaveButtonsAvailability();
+  document.getElementById("overlay").classList.add("show");
+}
+function closeModal(){ document.getElementById("overlay").classList.remove("show"); }
+document.getElementById("overlay").addEventListener("click", e=>{
+  if(e.target.id === "overlay") closeModal();
+});
+
+function setEditStatus(msg, kind){
+  const el = document.getElementById("edit-status");
+  el.textContent = msg;
+  el.className = "edit-status" + (kind ? " " + kind : "");
+}
+
+function updateSaveButtonsAvailability(){
+  const disabled = !WEBAPP_URL;
+  document.querySelectorAll(".edit-save").forEach(b => b.disabled = disabled);
+  if(disabled) setEditStatus("Edición no conectada aún (falta configurar WEBAPP_URL).", "err");
+}
+
+async function saveField(nid, field, value){
+  if(!WEBAPP_URL){
+    setEditStatus("Edición no conectada aún (falta configurar WEBAPP_URL).", "err");
+    return;
+  }
+  setEditStatus("Guardando…", "");
+  try{
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ nid, field, value })
+    });
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || "Error desconocido");
+    setEditStatus("✓ Guardado. Actualizando datos…", "ok");
+    await loadData(true);
+    const r = enriched.find(x => x.nid === nid);
+    if(r) openModal(nid); else closeModal();
+    setEditStatus("✓ Guardado correctamente.", "ok");
+  } catch(err){
+    setEditStatus("Error al guardar: " + err.message, "err");
+  }
+}
+
+document.querySelectorAll(".edit-save[data-field]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const field = btn.dataset.field;
+    const value = document.getElementById("edit-" + field).value;
+    saveField(currentModalNid, field, value);
+  });
+});
+
+// ---- Historial de comentarios: se guarda LOCAL (en el navegador) ----
+// Google Sheets solo recibe el comentario más reciente en la columna GESTION,
+// tal como ya la usan hoy (fecha + nota). El historial completo vive aquí.
+function commentHistoryKey(nid){ return "habi_comment_history_" + nid; }
+
+function loadLocalHistory(nid, seedText){
+  const raw = localStorage.getItem(commentHistoryKey(nid));
+  if(raw){
+    try{ return JSON.parse(raw); } catch(e){ /* si está corrupto, se re-siembra abajo */ }
+  }
+  const seeded = (seedText && seedText.trim() && seedText !== "Sin comentarios.") ? [seedText.trim()] : [];
+  localStorage.setItem(commentHistoryKey(nid), JSON.stringify(seeded));
+  return seeded;
+}
+
+// Devuelve solo el texto de una entrada, sin el prefijo de fecha, para poder
+// comparar si el contenido del Sheet ya está reflejado en el historial local.
+function entryContentKey(entry){
+  const trimmed = (entry || "").trim();
+  let m = trimmed.match(/^\[(\d{2}\/\d{2}\/\d{4})\]\s*([\s\S]*)$/);
+  if(m) return m[2].trim();
+  m = trimmed.match(/^(\d{2}[-\/]\d{2}[-\/]\d{4})\s*\n([\s\S]*)$/);
+  if(m) return m[2].trim();
+  return trimmed;
+}
+
+// Igual que loadLocalHistory, pero además revisa si el valor actual del Sheet
+// ya está reflejado como la entrada más reciente; si no, la agrega (esto
+// cubre el caso de que alguien edite el comentario directo en Google Sheets).
+function syncAndLoadHistory(nid, sheetRaw){
+  const history = loadLocalHistory(nid, sheetRaw);
+  const sheetTrim = (sheetRaw || "").trim();
+  if(sheetTrim && sheetTrim !== "Sin comentarios."){
+    const sheetContent = entryContentKey(sheetTrim);
+    const topContent = entryContentKey(history[0] || "");
+    if(sheetContent && sheetContent !== topContent){
+      history.unshift(sheetTrim);
+      saveLocalHistory(nid, history);
+    }
+  }
+  return history;
+}
+
+function saveLocalHistory(nid, entries){
+  localStorage.setItem(commentHistoryKey(nid), JSON.stringify(entries));
+}
+
+function escapeHtml(s){
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function formatEntryHtml(entry){
+  const trimmed = entry.trim();
+  let m = trimmed.match(/^\[(\d{2}\/\d{2}\/\d{4})\]\s*([\s\S]*)$/);
+  if(m) return `<span class="cdate">[${m[1]}]</span>${escapeHtml(m[2]).replace(/\n/g,"<br>")}`;
+  m = trimmed.match(/^(\d{2}[-\/]\d{2}[-\/]\d{4})\s*\n([\s\S]*)$/);
+  if(m) return `<span class="cdate">[${m[1].replace(/-/g,"/")}]</span>${escapeHtml(m[2]).replace(/\n/g,"<br>")}`;
+  return escapeHtml(trimmed).replace(/\n/g,"<br>");
+}
+
+function renderCommentHistoryFromArray(entries){
+  const el = document.getElementById("comment-history");
+  if(!entries || entries.length === 0){
+    el.innerHTML = `<div class="comment-empty">Sin comentarios todavía.</div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e => `<div class="comment-entry">${formatEntryHtml(e)}</div>`).join("");
+}
+
+document.getElementById("add-comment-btn").addEventListener("click", async ()=>{
+  const dateInput = document.getElementById("new-comment-date");
+  const textInput = document.getElementById("new-comment-text");
+  const dateVal = dateInput.value;
+  const textVal = textInput.value.trim();
+
+  if(!dateVal){
+    setEditStatus("La fecha del comentario es obligatoria.", "err");
+    dateInput.focus();
+    return;
+  }
+  if(!textVal){
+    setEditStatus("Escribe el comentario antes de guardarlo.", "err");
+    textInput.focus();
+    return;
+  }
+
+  const [y,m,d] = dateVal.split("-");
+  const displayDate = `${d}/${m}/${y}`;
+  const sheetDate = `${d}-${m}-${y}`; // mismo formato que ya usa la columna GESTION
+  const newEntry = `[${displayDate}] ${textVal}`;
+  const nid = currentModalNid;
+
+  // 1) Guardar en el historial local del tablero (se acumula, nunca se pierde)
+  const history = loadLocalHistory(nid, (enriched.find(x=>x.nid===nid)||{}).comentario);
+  history.unshift(newEntry);
+  saveLocalHistory(nid, history);
+  renderCommentHistoryFromArray(history);
+  textInput.value = "";
+
+  // 2) Mandar SOLO el comentario nuevo a Google Sheets (sobreescribe la celda, no acumula ahí)
+  if(!WEBAPP_URL){
+    setEditStatus("Guardado en el tablero. (Falta configurar WEBAPP_URL para reflejarlo en Sheets)", "err");
+    return;
+  }
+  setEditStatus("Guardando en Google Sheets…", "");
+  try{
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ nid, field: "comentario", value: sheetDate + "\n" + textVal })
+    });
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || "Error desconocido");
+    setEditStatus("✓ Comentario guardado (historial local + Google Sheets).", "ok");
+  } catch(err){
+    setEditStatus("Se guardó en el tablero, pero falló al escribir en Sheets: " + err.message, "err");
+  }
+});
+
+// =========================================================================
+// TABLERO 2 — TRÁMITES NOTARIALES (pestaña separada, misma hoja de cálculo)
+// =========================================================================
+const TRAMITES_GID = "644426626";
+const TRAMITES_GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?gid=${TRAMITES_GID}&headers=1&tqx=out:json;responseHandler:__gvizCallbackT`;
+const TRAMITES_CSV_URLS = TRAMITES_GID ? [
+  `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${TRAMITES_GID}`
+] : [];
+const TRAMITES_SLA_DIAS = 3;
+const TRAMITES_SHEET_NAME = "Trámites";
+
+const ANALISTAS_TRAMITES = ["Evelin Casallas","Jeferson Moreno","Angie Daza","Lina Suarez","Danny Perez","Sebastian Pulido","Leidy Cuchimba","Marcela Mora","Ivonne Merchand"];
+
+const ENTIDAD_OPCIONES = ["Contado","Credito Bancos","Caja honor","Fondo de empleados","Subsidio"];
+const entidadBadge = {
+  "Contado": "b-blue",
+  "Credito Bancos": "b-amber",
+  "Caja honor": "b-brown",
+  "Fondo de empleados": "b-pink",
+  "Subsidio": "b-purple"
+};
+
+const ESTADO_TRAMITE_OPCIONES = ["Contado","Preaprobado","Aprobado","Caja honor"];
+const estadoTramiteBadge = {
+  "Contado": "b-blue",
+  "Preaprobado": "b-amber",
+  "Aprobado": "b-green",
+  "Caja honor": "b-navy"
+};
+
+const ETAPA_LEGAL_OPCIONES = ["Preliminar","Avaluo","Estudio de titulos","Cancelacion de limitaciones","Pendiente documentos vendedor","En subsanacion Legalizacion","Cancelacion hipoteca","En espera ET verano","En gestion de notaria"];
+const etapaLegalBadge = {
+  "Preliminar": "b-amber",
+  "Avaluo": "b-green",
+  "Estudio de titulos": "b-salmon",
+  "Cancelacion de limitaciones": "b-blue",
+  "Pendiente documentos vendedor": "b-gray",
+  "En orden de escrituracion": "b-navy",
+  "En subsanacion Legalizacion": "b-purple",
+  "Cancelacion hipoteca": "b-brown",
+  "En espera ET verano": "b-pink",
+  "En gestion de notaria": "b-final"
+};
+
+// ---- Datos de ejemplo (mientras conectamos la pestaña Trámites en vivo) ----
+const tramitesSample = [
+  { nid:"34579718504", proyecto:"Cerezo", vendedor:"—", comprador:"—", direccion:"calle 83sur # 91 - 48", ciudad:"Bogotá", folio:"50s-40697727", oficina:"Bogotá Sur", notaria:"Notaría 41 de Bogotá", analista:"Angie Daza", entidad:"Credito Bancos", estado:"Aprobado", banco:"BBVA", etapaLegal:"Avaluo", fechaGestion:"2026-07-31", observacion:"Administración, predial, valorización, reclamo RUT." },
+  { nid:"33259510174", proyecto:"Puerto Luna Parque Residencial", vendedor:"—", comprador:"—", direccion:"carrera 10 # 15 - 84", ciudad:"Mosquera", folio:"50c-1901764", oficina:"Bogotá Centro", notaria:"Notaría única de Mosquera", analista:"Evelin Casallas", entidad:"Credito Bancos", estado:"Aprobado", banco:"Fondo Nacional del Ahorro", etapaLegal:"Preliminar", fechaGestion:"2026-08-04", observacion:"Firman el jueves 30 de julio a las 9 de la mañana en la Notaría única de Mosquera." },
+  { nid:"34015166541", proyecto:"Cibeles Hacienda Madrid", vendedor:"—", comprador:"—", direccion:"calle 24 # 1 - 120", ciudad:"Madrid", folio:"50c-2053921", oficina:"Bogotá Centro", notaria:"—", analista:"Jeferson Moreno", entidad:"Credito Bancos", estado:"Aprobado", banco:"Fondo Nacional del Ahorro", etapaLegal:"Preliminar", fechaGestion:"2026-08-03", observacion:"03/08/2026 Orden de escrituración. Notaría indica que requieren minuta ajustada para dar avance al proceso." },
+  { nid:"38514920706", proyecto:"Torre de Valverde", vendedor:"—", comprador:"—", direccion:"calle 142 # 9 - 23", ciudad:"Bogotá", folio:"50n-20194489", oficina:"Bogotá Norte", notaria:"—", analista:"Lina Suarez", entidad:"Credito Bancos", estado:"Aprobado", banco:"Av.villas", etapaLegal:"Preliminar", fechaGestion:"2026-08-03", observacion:"Nos aportan la EP solicitada, el proceso aún se encuentra en catastro." },
+  { nid:"47462735920", proyecto:"Puerto Luna Parque Residencial", vendedor:"—", comprador:"—", direccion:"carrera 10 # 15 - 84", ciudad:"Mosquera", folio:"50c-1901710", oficina:"Bogotá Centro", notaria:"—", analista:"Danny Perez", entidad:"Credito Bancos", estado:"Aprobado", banco:"Banco de Bogotá", etapaLegal:"Preliminar", fechaGestion:"2026-08-04", observacion:"04-08-2026 Se firma escritura 30-07-2026." }
+];
+
+let tramitesEnriched = [];
+let tCurrentAnalista = "todos";
+let tCurrentEntidad = "todos";
+let tCurrentEstado = "todos";
+let tCurrentSem = "todos";
+let tSearchTerm = "";
+let tCurrentModalNid = null;
+
+function extractPrimero(text){
+  if(!text) return "—";
+  const m = text.match(/cliente\s*1\.?\s*(.*?)\s*cliente\s*2\./i);
+  const raw = m ? m[1] : text.replace(/cliente\s*1\.?\s*/i,"");
+  const clean = raw.trim();
+  return clean ? titleCase(clean) : "—";
+}
+
+function mapTramitesRow(cols, idx){
+  const get = k => (idx[k] !== undefined && idx[k] !== -1 ? (cols[idx[k]] || "").trim() : "");
+  const nid = get("nid");
+  if(!nid || !/\d/.test(nid)) return null;
+  return {
+    nid,
+    proyecto: titleCase(get("proyecto")) || "—",
+    vendedor: extractPrimero(get("vendedor")),
+    ccVendedor: extractPrimero(get("ccVendedor")),
+    comprador: extractPrimero(get("comprador")),
+    ccComprador: extractPrimero(get("ccComprador")),
+    direccion: get("direccion") || "—",
+    ciudad: titleCase(get("ciudad")) || "—",
+    folio: get("folio") || "—",
+    oficina: get("oficina") || "—",
+    notaria: get("notaria") || "",
+    escritura: get("escritura") || "",
+    analista: get("analista") || "Sin asignar",
+    entidad: get("entidad") || "SIN DATO",
+    estado: get("estado") || "SIN DATO",
+    banco: get("banco") || "—",
+    etapaLegal: get("etapaLegal") || "SIN DATO",
+    fechaGestion: parseFecha(get("fechaGestion")),
+    observacion: get("observacion") || "Sin observaciones registradas."
+  };
+}
+
+function enrichTramites(items){
+  const hoy = new Date();
+  return items.map(it=>{
+    let sem = "gris", dias = null;
+    if(it.fechaGestion){
+      dias = diasHabilesDesde(it.fechaGestion, hoy);
+      if(dias > TRAMITES_SLA_DIAS) sem = "rojo";
+      else if(dias >= TRAMITES_SLA_DIAS - 1) sem = "amarillo";
+      else sem = "verde";
+    }
+    return {...it, sem, dias};
+  });
+}
+
+async function loadTramitesData(){
+  const banner = document.getElementById("t-banner");
+  try{
+    if(!TRAMITES_GID) throw new Error("Falta configurar TRAMITES_GID");
+    let rows;
+    try{
+      const gvizData = await loadViaJSONP_T(TRAMITES_GVIZ_URL, 20000);
+      if(!gvizData || !gvizData.table) throw new Error("Respuesta gviz inválida");
+      rows = gvizToRows(gvizData);
+    } catch(jsonpErr){
+      const csvText = await fetchFirstWorking(TRAMITES_CSV_URLS);
+      rows = parseCSV(csvText);
+    }
+    const headers = rows[0];
+    const idx = {
+      nid: findColIndex(headers, ["NID"]),
+      proyecto: findColIndex(headers, ["PROYECTO"]),
+      vendedor: findColIndex(headers, ["NOMBRE CLIENTES VENDEDOR"], ["VENDEDOR"]),
+      ccVendedor: findColIndex(headers, ["CC VENDEDOR"]),
+      comprador: findColIndex(headers, ["NOMBRE CLIENTES COMPRADOR"], ["COMPRADOR"]),
+      ccComprador: findColIndex(headers, ["CC COMPRADOR"]),
+      direccion: findColIndex(headers, ["DIRECCION"]),
+      ciudad: findColIndex(headers, ["CIUDAD"]),
+      folio: findColIndex(headers, ["FOLIO DE MATRICULA"]),
+      oficina: findColIndex(headers, ["OFICINA DE REGISTRO"]),
+      notaria: findColIndex(headers, ["NOTARIA"]),
+      escritura: findColIndex(headers, ["NUMERO ESCRITURA","NUMERO DE ESCRITURA"]),
+      analista: findColIndex(headers, ["ANALISTA", "NUEVO ANALISTA"]),
+      entidad: findColIndex(headers, ["ENTIDAD FINANCIERA"]),
+      estado: findColIndex(headers, ["ESTADO"]),
+      banco: findColIndex(headers, ["BANCO"]),
+      etapaLegal: findColIndex(headers, ["ETAPA LEGALIZACION"]),
+      fechaGestion: findColIndex(headers, ["FECHA DE GESTION"]),
+      observacion: findColIndex(headers, ["OBSERVACION TRAMITES"])
+    };
+    const parsed = rows.slice(1).map(r => mapTramitesRow(r, idx)).filter(Boolean);
+    if(parsed.length === 0) throw new Error("Sin filas válidas");
+    tramitesEnriched = enrichTramites(parsed);
+
+    console.log("🔍 DIAG idx.analista = " + idx.analista + " | header en esa posición = '" + headers[idx.analista] + "'");
+    console.log("🔍 DIAG headers (texto plano): " + JSON.stringify(headers));
+    console.log("🔍 DIAG valores CRUDOS de analista, primeras 10 filas: " + JSON.stringify(rows.slice(1,11).map(r => r[idx.analista])));
+    console.log("🔍 DIAG r.analista ya mapeado, primeras 10 filas: " + JSON.stringify(tramitesEnriched.slice(0,10).map(r => r.analista)));
+    console.log("🔍 DIAG valores ÚNICOS de analista en todas las filas: " + JSON.stringify([...new Set(tramitesEnriched.map(r => r.analista))]));
+    console.log("🔍 DIAG idx.fechaGestion = " + idx.fechaGestion + " | header = '" + headers[idx.fechaGestion] + "'");
+    const conteoSem = { verde:0, amarillo:0, rojo:0, gris:0 };
+    tramitesEnriched.forEach(r => conteoSem[r.sem]++);
+    console.log("🔍 DIAG conteo total por semáforo: " + JSON.stringify(conteoSem));
+    banner.classList.remove("show");
+  } catch(err){
+    if(tramitesEnriched.length === 0) tramitesEnriched = enrichTramites(tramitesSample);
+    banner.classList.add("show");
+    console.warn("Trámites: no se pudo cargar en vivo:", err);
+  }
+  renderTramitesAll();
+}
+
+function loadViaJSONP_T(url, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    let done = false;
+    const cbName = "__gvizCallbackT";
+    function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function(data){ if(done) return; done = true; resolve(data); cleanup(); };
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => { if(done) return; done = true; reject(new Error("Error cargando script JSONP")); cleanup(); };
+    document.body.appendChild(script);
+    const timer = setTimeout(() => { if(done) return; done = true; reject(new Error("Timeout JSONP")); cleanup(); }, timeoutMs || 8000);
+  });
+}
+
+function tFilteredRows(){
+  return tFilteredRowsBase(true);
+}
+function tFilteredRowsBase(includeSem){
+  return tramitesEnriched.filter(r=>{
+    if(tCurrentAnalista !== "todos" && r.analista !== tCurrentAnalista) return false;
+    if(tCurrentEntidad !== "todos" && r.entidad !== tCurrentEntidad) return false;
+    if(tCurrentEstado !== "todos" && r.estado !== tCurrentEstado) return false;
+    if(includeSem && tCurrentSem !== "todos" && r.sem !== tCurrentSem) return false;
+    if(tSearchTerm){
+      const haystack = (r.nid + " " + r.proyecto).toLowerCase();
+      if(!haystack.includes(tSearchTerm)) return false;
+    }
+    return true;
+  });
+}
+
+function renderTramitesFilters(){
+  const aSel = document.getElementById("t-analista-filter");
+  const aPrev = aSel.value || tCurrentAnalista;
+  aSel.innerHTML = `<option value="todos">Todos los analistas</option>` + ANALISTAS_TRAMITES.map(a=>`<option value="${a}">${a}</option>`).join("");
+  aSel.value = ANALISTAS_TRAMITES.includes(aPrev) ? aPrev : "todos";
+  aSel.onchange = () => { tCurrentAnalista = aSel.value; renderTramitesAll(); };
+
+  const eSel = document.getElementById("t-entidad-filter");
+  const ePrev = eSel.value || tCurrentEntidad;
+  eSel.innerHTML = `<option value="todos">Todas las entidades</option>` + ENTIDAD_OPCIONES.map(a=>`<option value="${a}">${a}</option>`).join("");
+  eSel.value = ENTIDAD_OPCIONES.includes(ePrev) ? ePrev : "todos";
+  eSel.onchange = () => { tCurrentEntidad = eSel.value; renderTramitesAll(); };
+
+  const sSel = document.getElementById("t-estado-filter");
+  const sPrev = sSel.value || tCurrentEstado;
+  sSel.innerHTML = `<option value="todos">Todos los estados</option>` + ESTADO_TRAMITE_OPCIONES.map(a=>`<option value="${a}">${a}</option>`).join("");
+  if(ESTADO_TRAMITE_OPCIONES.includes(sPrev) || sPrev === "todos") sSel.value = sPrev; else sSel.value = "todos";
+  sSel.onchange = () => { tCurrentEstado = sSel.value; renderTramitesAll(); };
+
+  const semSel = document.getElementById("t-sem-filter");
+  semSel.value = tCurrentSem === "todos" ? "todos" : "sem-" + tCurrentSem;
+  semSel.onchange = () => {
+    tCurrentSem = semSel.value === "todos" ? "todos" : semSel.value.replace("sem-","");
+    renderTramitesAll();
+  };
+}
+
+document.getElementById("t-clear-filters").addEventListener("click", ()=>{
+  tCurrentAnalista = "todos";
+  tCurrentEntidad = "todos";
+  tCurrentEstado = "todos";
+  tCurrentSem = "todos";
+  tSearchTerm = "";
+  document.getElementById("t-analista-filter").value = "todos";
+  document.getElementById("t-entidad-filter").value = "todos";
+  document.getElementById("t-estado-filter").value = "todos";
+  document.getElementById("t-sem-filter").value = "todos";
+  document.getElementById("t-search").value = "";
+  document.getElementById("t-search").parentElement.classList.remove("has-text");
+  renderTramitesAll();
+});
+
+document.getElementById("t-search").addEventListener("input", e=>{
+  tSearchTerm = e.target.value.trim().toLowerCase();
+  document.getElementById("t-search").parentElement.classList.toggle("has-text", tSearchTerm.length > 0);
+  renderTramitesAll();
+});
+document.getElementById("t-search-clear").addEventListener("click", ()=>{
+  const input = document.getElementById("t-search");
+  input.value = ""; tSearchTerm = "";
+  input.parentElement.classList.remove("has-text");
+  renderTramitesAll();
+  input.focus();
+});
+
+function renderTramitesSummary(rows, containerId){
+  const counts = { verde:0, amarillo:0, rojo:0 };
+  rows.forEach(r => { if(counts[r.sem] !== undefined) counts[r.sem]++; });
+  const el = document.getElementById(containerId || "t-summary");
+  el.innerHTML = "";
+  ["verde","amarillo","rojo"].forEach(k=>{
+    const div = document.createElement("div");
+    div.className = `sum-card c-${k}` + (tCurrentSem === k ? " active" : "");
+    div.innerHTML = `<span class="dot"></span><div class="sum-text"><span class="sum-label">${semColor[k].label}</span><span class="sum-count">${counts[k]}</span></div>`;
+    div.onclick = () => { tCurrentSem = k; renderTramitesAll(); };
+    el.appendChild(div);
+  });
+}
+
+function renderTramitesTable(rows){
+  const tbody = document.getElementById("t-tbody");
+  tbody.innerHTML = "";
+  document.getElementById("t-footer-note").textContent = `Mostrando ${rows.length} de ${tramitesEnriched.length} registros`;
+
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="10" class="no-results">Sin resultados</td></tr>`;
+    return;
+  }
+
+  rows.forEach(r=>{
+    const tr = document.createElement("tr");
+    const slaPct = r.dias === null ? 0 : Math.min(100, Math.round((r.dias / TRAMITES_SLA_DIAS) * 100));
+    const slaColor = r.sem === "rojo" ? "var(--red)" : r.sem === "amarillo" ? "var(--amber)" : "var(--green)";
+    tr.innerHTML = `
+      <td class="nid">${r.nid}</td>
+      <td><span class="clickable" data-nid="${r.nid}">${r.proyecto}</span></td>
+      <td class="muted">${r.analista}</td>
+      <td><span class="badge ${entidadBadge[r.entidad] || 'b-gray'}">${r.entidad}</span></td>
+      <td><span class="badge ${estadoTramiteBadge[r.estado] || 'b-gray'}">${r.estado}</span></td>
+      <td class="muted">${r.banco}</td>
+      <td><span class="badge ${etapaLegalBadge[r.etapaLegal] || 'b-gray'}">${r.etapaLegal}</span></td>
+      <td class="muted">${fmtFecha(r.fechaGestion)}</td>
+      <td>
+        <div class="sla">
+          <div class="sla-track"><div class="sla-fill" style="width:${slaPct}%; background:${slaColor}"></div></div>
+          <span class="sla-txt">${r.dias === null ? "sin gestión" : r.dias + "d háb. de " + TRAMITES_SLA_DIAS + "d"}</span>
+        </div>
+      </td>
+      <td><span class="badge ${semColor[r.sem].cls}">${semColor[r.sem].label}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".clickable").forEach(el=>{
+    el.onclick = () => openTramitesModal(el.dataset.nid);
+  });
+}
+
+function renderTramitesAnalistaMetrics(rows, containerId){
+  const counts = {};
+  rows.forEach(r=>{
+    const a = r.analista || "Sin asignar";
+    if(!counts[a]) counts[a] = { verde:0, amarillo:0, rojo:0, gris:0, total:0 };
+    if(counts[a][r.sem] !== undefined) counts[a][r.sem]++;
+    counts[a].total++;
+  });
+  const entries = Object.entries(counts).sort((a,b) => b[1].total - a[1].total);
+  const tbody = document.getElementById(containerId || "t-analista-metrics");
+  if(entries.length === 0){
+    tbody.innerHTML = `<tr><td colspan="5" class="no-results">Sin datos</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(([name, c]) => `
+    <tr>
+      <td class="val">${name}</td>
+      <td><span class="badge b-green clickable-badge" data-analista="${name}" data-sem="verde">${c.verde}</span></td>
+      <td><span class="badge b-amber clickable-badge" data-analista="${name}" data-sem="amarillo">${c.amarillo}</span></td>
+      <td><span class="badge b-red clickable-badge" data-analista="${name}" data-sem="rojo">${c.rojo}</span></td>
+      <td class="muted">${c.total}</td>
+    </tr>
+  `).join("");
+
+  tbody.querySelectorAll(".clickable-badge").forEach(el=>{
+    el.onclick = () => {
+      tCurrentAnalista = el.dataset.analista;
+      tCurrentSem = el.dataset.sem;
+      document.getElementById("t-analista-filter").value = tCurrentAnalista;
+      renderTramitesAll();
+      document.querySelectorAll('.tab-btn[data-tab="tramites"]')[0].click();
+      document.getElementById("t-tbody").scrollIntoView({ behavior:"smooth", block:"center" });
+    };
+  });
+}
+
+function renderEtapaLegalPorAnalista(rows){
+  const head = document.getElementById("t-etapalegal-head");
+  head.innerHTML = `<th>Analista</th>` + ETAPA_LEGAL_OPCIONES.map(e=>`<th>${e}</th>`).join("") + `<th>Total</th>`;
+
+  const counts = {};
+  rows.forEach(r=>{
+    const a = r.analista || "Sin asignar";
+    if(!counts[a]) counts[a] = { total: 0 };
+    counts[a][r.etapaLegal] = (counts[a][r.etapaLegal] || 0) + 1;
+    counts[a].total++;
+  });
+  const entries = Object.entries(counts).sort((a,b) => b[1].total - a[1].total);
+  const tbody = document.getElementById("t-etapalegal-matrix");
+  if(entries.length === 0){
+    tbody.innerHTML = `<tr><td colspan="${ETAPA_LEGAL_OPCIONES.length + 2}" class="no-results">Sin datos</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = entries.map(([name, c]) => `
+    <tr>
+      <td class="val">${name}</td>
+      ${ETAPA_LEGAL_OPCIONES.map(e => `<td class="muted" style="text-align:center;">${c[e] || "—"}</td>`).join("")}
+      <td class="muted" style="text-align:center; font-weight:700;">${c.total}</td>
+    </tr>
+  `).join("");
+}
+
+function renderTramitesAll(){
+  renderTramitesFilters();
+  const overviewRows = tFilteredRowsBase(false); // sin filtro de semáforo, para el panorama general
+  const rows = tFilteredRowsBase(true);          // con todos los filtros, para la tabla final
+  renderTramitesSummary(overviewRows, "t-summary");
+  renderTramitesSummary(overviewRows, "t2-summary");
+  renderTramitesAnalistaMetrics(overviewRows, "t-analista-metrics");
+  renderTramitesAnalistaMetrics(overviewRows, "t2-analista-metrics");
+  renderEtapaLegalPorAnalista(overviewRows);
+  renderTramitesTable(rows);
+}
+
+function openTramitesModal(nid){
+  const r = tramitesEnriched.find(x=>x.nid===nid);
+  if(!r) return;
+  tCurrentModalNid = nid;
+  document.getElementById("t-m-proyecto").textContent = r.proyecto;
+  document.getElementById("t-m-nid").textContent = "NID " + r.nid;
+  document.getElementById("t-m-vendedor").textContent = r.vendedor;
+  document.getElementById("t-m-cc-vendedor").textContent = r.ccVendedor || "—";
+  document.getElementById("t-m-comprador").textContent = r.comprador;
+  document.getElementById("t-m-cc-comprador").textContent = r.ccComprador || "—";
+  document.getElementById("t-m-direccion").textContent = r.direccion;
+  document.getElementById("t-m-ciudad").textContent = r.ciudad;
+  document.getElementById("t-m-folio").textContent = r.folio;
+  document.getElementById("t-m-oficina").textContent = r.oficina;
+  document.getElementById("t-edit-notaria").value = r.notaria || "";
+  document.getElementById("t-edit-escritura").value = r.escritura || "";
+  document.getElementById("t-edit-fechagestion").value = r.fechaGestion || "";
+  renderCommentHistoryFromArray_T(syncAndLoadHistory_T(nid, r.observacion));
+  document.getElementById("t-new-comment-text").value = "";
+  document.getElementById("t-new-comment-date").value = new Date().toISOString().slice(0,10);
+  document.getElementById("t-edit-banco").value = r.banco === "—" ? "" : r.banco;
+
+  const eSel = document.getElementById("t-edit-entidad");
+  eSel.innerHTML = ENTIDAD_OPCIONES.map(e=>`<option value="${e}">${e}</option>`).join("");
+  eSel.value = ENTIDAD_OPCIONES.includes(r.entidad) ? r.entidad : ENTIDAD_OPCIONES[0];
+
+  const sSel = document.getElementById("t-edit-estado");
+  sSel.innerHTML = ESTADO_TRAMITE_OPCIONES.map(e=>`<option value="${e}">${e}</option>`).join("");
+  sSel.value = ESTADO_TRAMITE_OPCIONES.includes(r.estado) ? r.estado : ESTADO_TRAMITE_OPCIONES[0];
+
+  const lSel = document.getElementById("t-edit-etapalegal");
+  const lOpciones = (r.etapaLegal && !ETAPA_LEGAL_OPCIONES.includes(r.etapaLegal) && r.etapaLegal !== "SIN DATO")
+    ? [r.etapaLegal, ...ETAPA_LEGAL_OPCIONES]
+    : ETAPA_LEGAL_OPCIONES;
+  lSel.innerHTML = lOpciones.map(e=>`<option value="${e}">${e}</option>`).join("");
+  lSel.value = lOpciones.includes(r.etapaLegal) ? r.etapaLegal : lOpciones[0];
+
+  setTEditStatus("", "");
+  document.querySelectorAll(".t-edit-save").forEach(b => b.disabled = !WEBAPP_URL);
+  if(!WEBAPP_URL) setTEditStatus("Edición no conectada aún (falta configurar WEBAPP_URL).", "err");
+
+  document.getElementById("t-overlay").classList.add("show");
+}
+function closeTramitesModal(){ document.getElementById("t-overlay").classList.remove("show"); }
+document.getElementById("t-overlay").addEventListener("click", e=>{
+  if(e.target.id === "t-overlay") closeTramitesModal();
+});
+
+function setTEditStatus(msg, kind){
+  const el = document.getElementById("t-edit-status");
+  el.textContent = msg;
+  el.className = "edit-status" + (kind ? " " + kind : "");
+}
+
+const T_FIELD_TO_ID = { entidad:"t-edit-entidad", estado:"t-edit-estado", banco:"t-edit-banco", etapaLegal:"t-edit-etapalegal", notaria:"t-edit-notaria", escritura:"t-edit-escritura", fechaGestion:"t-edit-fechagestion" };
+
+async function saveTramitesField(nid, field, value){
+  if(!WEBAPP_URL){
+    setTEditStatus("Edición no conectada aún (falta configurar WEBAPP_URL).", "err");
+    return;
+  }
+  setTEditStatus("Guardando…", "");
+  try{
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ nid, field, value, sheet: TRAMITES_SHEET_NAME })
+    });
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || "Error desconocido");
+    setTEditStatus("✓ Guardado. Actualizando datos…", "ok");
+    await loadTramitesData();
+    const r = tramitesEnriched.find(x => x.nid === nid);
+    if(r) openTramitesModal(nid); else closeTramitesModal();
+    setTEditStatus("✓ Guardado correctamente.", "ok");
+  } catch(err){
+    setTEditStatus("Error al guardar: " + err.message, "err");
+  }
+}
+
+document.querySelectorAll(".t-edit-save").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const field = btn.dataset.field;
+    const value = document.getElementById(T_FIELD_TO_ID[field]).value;
+    saveTramitesField(tCurrentModalNid, field, value);
+  });
+});
+
+// ---- Historial de observaciones (Trámites) — mismo patrón que comentarios de registro ----
+function commentHistoryKey_T(nid){ return "habi_tramites_comment_" + nid; }
+
+function loadLocalHistory_T(nid, seedText){
+  const raw = localStorage.getItem(commentHistoryKey_T(nid));
+  if(raw){
+    try{ return JSON.parse(raw); } catch(e){ /* re-siembra abajo si está corrupto */ }
+  }
+  const seeded = (seedText && seedText.trim() && seedText !== "Sin observaciones registradas.") ? [seedText.trim()] : [];
+  localStorage.setItem(commentHistoryKey_T(nid), JSON.stringify(seeded));
+  return seeded;
+}
+
+// Igual que loadLocalHistory_T, pero además revisa si el valor actual del Sheet
+// ya está reflejado como la entrada más reciente; si no, la agrega (cubre el
+// caso de editar la observación directo en Google Sheets).
+function syncAndLoadHistory_T(nid, sheetRaw){
+  const history = loadLocalHistory_T(nid, sheetRaw);
+  const sheetTrim = (sheetRaw || "").trim();
+  if(sheetTrim && sheetTrim !== "Sin observaciones registradas."){
+    const sheetContent = entryContentKey(sheetTrim);
+    const topContent = entryContentKey(history[0] || "");
+    if(sheetContent && sheetContent !== topContent){
+      history.unshift(sheetTrim);
+      saveLocalHistory_T(nid, history);
+    }
+  }
+  return history;
+}
+function saveLocalHistory_T(nid, entries){
+  localStorage.setItem(commentHistoryKey_T(nid), JSON.stringify(entries));
+}
+function renderCommentHistoryFromArray_T(entries){
+  const el = document.getElementById("t-comment-history");
+  if(!entries || entries.length === 0){
+    el.innerHTML = `<div class="comment-empty">Sin observaciones todavía.</div>`;
+    return;
+  }
+  el.innerHTML = entries.map(e => `<div class="comment-entry">${formatEntryHtml(e)}</div>`).join("");
+}
+
+document.getElementById("t-add-comment-btn").addEventListener("click", async ()=>{
+  const dateInput = document.getElementById("t-new-comment-date");
+  const textInput = document.getElementById("t-new-comment-text");
+  const dateVal = dateInput.value;
+  const textVal = textInput.value.trim();
+
+  if(!dateVal){
+    setTEditStatus("La fecha de la observación es obligatoria.", "err");
+    dateInput.focus();
+    return;
+  }
+  if(!textVal){
+    setTEditStatus("Escribe la observación antes de guardarla.", "err");
+    textInput.focus();
+    return;
+  }
+
+  const [y,m,d] = dateVal.split("-");
+  const displayDate = `${d}/${m}/${y}`;
+  const sheetDate = `${d}-${m}-${y}`;
+  const newEntry = `[${displayDate}] ${textVal}`;
+  const nid = tCurrentModalNid;
+
+  // 1) Historial local (se acumula, nunca se pierde en este navegador)
+  const history = loadLocalHistory_T(nid, (tramitesEnriched.find(x=>x.nid===nid)||{}).observacion);
+  history.unshift(newEntry);
+  saveLocalHistory_T(nid, history);
+  renderCommentHistoryFromArray_T(history);
+  textInput.value = "";
+
+  // 2) Solo la observación nueva se manda a la columna OBSERVACION TRAMITES del Sheet
+  if(!WEBAPP_URL){
+    setTEditStatus("Guardado en el tablero. (Falta configurar WEBAPP_URL para reflejarlo en Sheets)", "err");
+    return;
+  }
+  setTEditStatus("Guardando en Google Sheets…", "");
+  try{
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ nid, field: "observacion", value: sheetDate + "\n" + textVal, sheet: TRAMITES_SHEET_NAME })
+    });
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || "Error desconocido");
+
+    // 3) La misma fecha que se usó para la observación se replica en FECHA DE GESTION (columna AN)
+    const resFecha = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ nid, field: "fechaGestion", value: dateVal, sheet: TRAMITES_SHEET_NAME })
+    });
+    const dataFecha = await resFecha.json();
+    if(!dataFecha.success) throw new Error(dataFecha.error || "Error desconocido al actualizar fecha de gestión");
+
+    await loadTramitesData();
+    const r = tramitesEnriched.find(x => x.nid === nid);
+    if(r) openTramitesModal(nid);
+    setTEditStatus("✓ Observación guardada (historial local + Google Sheets + fecha de gestión).", "ok");
+  } catch(err){
+    setTEditStatus("Se guardó en el tablero, pero falló al escribir en Sheets: " + err.message, "err");
+  }
+});
+
+loadTramitesData();
+setInterval(loadTramitesData, AUTO_REFRESH_MS);
+
+// ---- Inicio ----
+loadData(false);
+setInterval(()=>loadData(false), AUTO_REFRESH_MS);
+</script>
+</body>
+</html>
