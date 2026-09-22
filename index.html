@@ -278,6 +278,15 @@
   .multiselect-panel label:hover{ background:#F7F5FB; }
   .multiselect-panel .ms-divider{ height:1px; background:var(--line); margin:6px 0; }
 
+  .v-vencido-item{
+    display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:11px 14px;
+    border-radius:10px; background:#FEF2F2; border-left:4px solid var(--red); margin-bottom:8px; font-size:12.5px;
+  }
+  .v-vencido-item:last-child{ margin-bottom:0; }
+  .v-vencido-nid{ font-weight:700; color:var(--ink); min-width:110px; }
+  .v-vencido-detalle{ color:var(--ink-soft); flex:1; }
+  .v-vencido-dias{ font-weight:700; color:var(--red); white-space:nowrap; background:#fff; padding:3px 10px; border-radius:999px; }
+
   .val{ font-weight:700; }
   .row-archivado{ background:#F7F7F8; color:var(--ink-soft); }
   .row-archivado .badge{ opacity:.85; }
@@ -613,6 +622,17 @@
 
     <div class="section-title">Resumen</div>
     <div class="metrics" id="v-metrics"></div>
+
+    <div class="section-title">⏱️ Tiempos de vencimiento de los estudios de títulos</div>
+    <div class="metrics" id="v-sla-metrics"></div>
+    <div class="chart-card">
+      <div class="chart-card-title">Estudios entregados por mes · promedio de días hábiles (asignación → entrega)</div>
+      <div id="v-sla-chart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Casos entregados fuera del SLA de 5 días hábiles</div>
+      <div id="v-vencidos-list"></div>
+    </div>
 
     <div class="toolbar">
       <div class="multiselect" id="v-analista-multiselect">
@@ -2786,9 +2806,127 @@ function vRenderTable(rows){
 function vRenderAll(){
   vRenderAnalistaFilter();
   vRenderKPIs();
+  veranoRenderSLASection();
   vRenderTable(vFilteredRows());
   const footer = document.getElementById("v-footer-note");
   footer.textContent = `${vFilteredRows().length} de ${veranoEnriched.length} registros · Sheet: Estudio de Títulos Verano · pestaña "Inmobiliaria"`;
+}
+
+// ---- Tiempos de vencimiento (asignación → entrega), SLA 5 días hábiles ----
+const MES_LABELS_ES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function veranoMesLabel(key){
+  const [y,m] = key.split("-");
+  return `${MES_LABELS_ES[parseInt(m,10)-1]} ${y}`;
+}
+
+// Días hábiles reales entre fecha de asignación y fecha de entrega de cada caso
+// (independiente de lo que traiga PROMEDIO DIAS/CONTEO DIAS, que solo aplica a casos pendientes).
+function veranoEntregadosConDias(){
+  return veranoEnriched
+    .filter(r => r.fechaAsignacion && r.fechaEntrega)
+    .map(r => ({ ...r, diasHab: diasHabilesDesde(r.fechaAsignacion, new Date(r.fechaEntrega + "T00:00:00")) }));
+}
+
+function veranoBuildChartSVG(keys, monthly){
+  if(keys.length === 0){
+    return `<div class="no-results">Aún no hay estudios entregados para graficar.</div>`;
+  }
+  const barW = 64, gap = 56, leftPad = 46, rightPad = 130, topPad = 40, bottomPad = 40;
+  const chartH = 190;
+  const W = leftPad + rightPad + keys.length * (barW + gap) - gap;
+  const H = topPad + chartH + bottomPad;
+  const counts = keys.map(k => monthly[k].count);
+  const avgs = keys.map(k => monthly[k].sum / monthly[k].count);
+  const maxCount = Math.max(...counts, 1);
+  const maxAvg = Math.max(Math.max(...avgs), VERANO_SLA_DIAS) * 1.2;
+
+  const barsSVG = keys.map((k,i)=>{
+    const x = leftPad + i*(barW+gap);
+    const h = (counts[i]/maxCount) * chartH;
+    const y = topPad + chartH - h;
+    return `
+      <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h,2)}" rx="8" fill="url(#vBarGrad)"></rect>
+      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#3B2A6B">${counts[i]}</text>
+      <text x="${x + barW/2}" y="${topPad + chartH + 22}" text-anchor="middle" font-size="11.5" fill="#6B7280">${veranoMesLabel(k)}</text>
+    `;
+  }).join("");
+
+  const points = keys.map((k,i)=>{
+    const x = leftPad + i*(barW+gap) + barW/2;
+    const y = topPad + chartH - (avgs[i]/maxAvg)*chartH;
+    return { x, y, val: avgs[i] };
+  });
+  const polyline = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const dotsAndLabels = points.map(p => `
+    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#F97316" stroke="#fff" stroke-width="1.6"></circle>
+    <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#C2410C">${p.val.toFixed(1)}d</text>
+  `).join("");
+
+  const slaY = topPad + chartH - (VERANO_SLA_DIAS/maxAvg)*chartH;
+
+  return `
+  <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${Math.min(W,900)}px; display:block; margin:0 auto; overflow:visible;">
+    <defs>
+      <linearGradient id="vBarGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#B4A0F7"></stop>
+        <stop offset="100%" stop-color="#6D28D9"></stop>
+      </linearGradient>
+    </defs>
+    <line x1="${leftPad}" y1="${topPad+chartH}" x2="${W-rightPad}" y2="${topPad+chartH}" stroke="#E5E7EB" stroke-width="1"></line>
+    <line x1="${leftPad}" y1="${slaY.toFixed(1)}" x2="${W-rightPad}" y2="${slaY.toFixed(1)}" stroke="#DC2626" stroke-width="1.4" stroke-dasharray="5,4"></line>
+    <text x="${W-rightPad+8}" y="${(slaY+4).toFixed(1)}" font-size="11" fill="#DC2626" font-weight="700">SLA 5d</text>
+    ${barsSVG}
+    <polyline points="${polyline}" fill="none" stroke="#F97316" stroke-width="2.2"></polyline>
+    ${dotsAndLabels}
+  </svg>
+  <div style="display:flex; justify-content:center; gap:22px; margin-top:6px; font-size:11.5px; color:var(--ink-soft);">
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#6D28D9;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F97316;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
+  </div>
+  `;
+}
+
+function veranoRenderSLASection(){
+  const entregados = veranoEntregadosConDias();
+  const total = entregados.length;
+  const aTiempo = entregados.filter(r => r.diasHab <= VERANO_SLA_DIAS).length;
+  const vencidos = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS).length;
+  const cumplimiento = total ? Math.round((aTiempo/total)*100) : 0;
+  const promedio = total ? entregados.reduce((s,r) => s + r.diasHab, 0) / total : 0;
+
+  document.getElementById("v-sla-metrics").innerHTML = `
+    <div class="metric-card"><div class="metric-label">Total entregados</div><div class="metric-value">${total}</div></div>
+    <div class="metric-card"><div class="metric-label">🟢 A tiempo (≤5d hábiles)</div><div class="metric-value">${aTiempo}</div></div>
+    <div class="metric-card"><div class="metric-label">🔴 Vencidos (&gt;5d hábiles)</div><div class="metric-value">${vencidos}</div></div>
+    <div class="metric-card"><div class="metric-label">Cumplimiento SLA</div><div class="metric-value">${cumplimiento}%</div></div>
+    <div class="metric-card"><div class="metric-label">Promedio días hábiles</div><div class="metric-value">${promedio.toFixed(2)}</div></div>
+  `;
+
+  const monthly = {};
+  entregados.forEach(r=>{
+    const key = r.fechaEntrega.slice(0,7);
+    if(!monthly[key]) monthly[key] = { count:0, sum:0 };
+    monthly[key].count++;
+    monthly[key].sum += r.diasHab;
+  });
+  const keys = Object.keys(monthly).sort();
+  document.getElementById("v-sla-chart").innerHTML = veranoBuildChartSVG(keys, monthly);
+
+  const vencidosRows = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS).sort((a,b) => b.diasHab - a.diasHab);
+  const listEl = document.getElementById("v-vencidos-list");
+  if(vencidosRows.length === 0){
+    listEl.innerHTML = `<div class="no-results">🎉 Ningún estudio entregado superó el SLA de 5 días hábiles.</div>`;
+  } else {
+    listEl.innerHTML = vencidosRows.map(r=>{
+      const retraso = r.diasHab - VERANO_SLA_DIAS;
+      return `
+      <div class="v-vencido-item">
+        <span class="v-vencido-nid">Caso ${r.nid}</span>
+        <span class="v-vencido-detalle">Asignado el ${fmtFecha(r.fechaAsignacion)} y entregado el ${fmtFecha(r.fechaEntrega)}</span>
+        <span class="v-vencido-dias">${retraso} día${retraso === 1 ? "" : "s"} hábil${retraso === 1 ? "" : "es"} de retraso</span>
+      </div>`;
+    }).join("");
+  }
 }
 
 function setVSaveStatus(msg, kind){
