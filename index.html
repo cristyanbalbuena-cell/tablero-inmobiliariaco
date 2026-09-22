@@ -292,6 +292,8 @@
     font-family:inherit; font-size:12.5px; font-weight:700; padding:8px 16px; border-radius:999px; cursor:pointer;
   }
   .v-vencidos-toggle-btn:hover{ background:#F7F5FB; border-color:var(--habi-purple); }
+  .t-etapalegal-cell{ transition:transform .12s ease, box-shadow .12s ease; }
+  .t-etapalegal-cell:hover{ transform:scale(1.08); box-shadow:0 3px 10px rgba(109,40,217,.35); position:relative; z-index:2; }
 
   .val{ font-weight:700; }
   .row-archivado{ background:#F7F7F8; color:var(--ink-soft); }
@@ -618,6 +620,18 @@
           <tbody id="t-etapalegal-matrix"></tbody>
         </table>
       </div>
+      <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:12px; font-size:11.5px; color:var(--ink-soft);">
+        <span>Menos casos</span>
+        <span style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--line);">
+          <span style="width:22px; height:14px; background:rgba(109,40,217,0.14);"></span>
+          <span style="width:22px; height:14px; background:rgba(109,40,217,0.34);"></span>
+          <span style="width:22px; height:14px; background:rgba(109,40,217,0.54);"></span>
+          <span style="width:22px; height:14px; background:rgba(109,40,217,0.72);"></span>
+          <span style="width:22px; height:14px; background:rgba(109,40,217,0.9);"></span>
+        </span>
+        <span>Más casos</span>
+        <span style="margin-left:10px;">· Clic en un número para ver el detalle</span>
+      </div>
     </div>
   </div>
 
@@ -854,6 +868,31 @@
         <tbody id="month-detail-tbody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="t-etapalegal-detail-overlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="t-etapalegal-detail-title">Detalle</div>
+        <div class="modal-sub" id="t-etapalegal-detail-sub"></div>
+      </div>
+      <button class="modal-close" id="t-etapalegal-detail-close">✕</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>NID</th>
+            <th>Proyecto</th>
+            <th>Etapa</th>
+          </tr>
+        </thead>
+        <tbody id="t-etapalegal-detail-tbody"></tbody>
+      </table>
+    </div>
+    <div class="footer-note" style="text-align:center;">Clic en un NID para abrir su ficha completa.</div>
   </div>
 </div>
 
@@ -2292,16 +2331,28 @@ function renderTramitesAnalistaMetrics(rows, containerId){
   });
 }
 
+let tEtapaLegalGroups = {};
+function tHeatColor(v, max){
+  if(!v) return { bg: "transparent", color: "var(--ink-soft)" };
+  const ratio = max > 0 ? v / max : 0;
+  const alpha = 0.14 + ratio * 0.66;
+  return { bg: `rgba(109,40,217,${alpha.toFixed(2)})`, color: alpha > 0.48 ? "#fff" : "#4C1D95" };
+}
+
 function renderEtapaLegalPorAnalista(rows){
   const head = document.getElementById("t-etapalegal-head");
   head.innerHTML = `<th>Analista</th>` + ETAPA_LEGAL_OPCIONES.map(e=>`<th>${e}</th>`).join("") + `<th>Total</th>`;
 
   const counts = {};
+  tEtapaLegalGroups = {};
   rows.forEach(r=>{
     const a = r.analista || "Sin asignar";
     if(!counts[a]) counts[a] = { total: 0 };
     counts[a][r.etapaLegal] = (counts[a][r.etapaLegal] || 0) + 1;
     counts[a].total++;
+    const key = a + "||" + r.etapaLegal;
+    if(!tEtapaLegalGroups[key]) tEtapaLegalGroups[key] = [];
+    tEtapaLegalGroups[key].push(r);
   });
   const entries = Object.entries(counts).sort((a,b) => b[1].total - a[1].total);
   const tbody = document.getElementById("t-etapalegal-matrix");
@@ -2309,14 +2360,52 @@ function renderEtapaLegalPorAnalista(rows){
     tbody.innerHTML = `<tr><td colspan="${ETAPA_LEGAL_OPCIONES.length + 2}" class="no-results">Sin datos</td></tr>`;
     return;
   }
+  const maxVal = Math.max(1, ...entries.flatMap(([,c]) => ETAPA_LEGAL_OPCIONES.map(e => c[e] || 0)));
+
   tbody.innerHTML = entries.map(([name, c]) => `
     <tr>
       <td class="val">${name}</td>
-      ${ETAPA_LEGAL_OPCIONES.map(e => `<td class="muted" style="text-align:center;">${c[e] || "—"}</td>`).join("")}
+      ${ETAPA_LEGAL_OPCIONES.map(e=>{
+        const v = c[e] || 0;
+        if(v === 0) return `<td class="muted" style="text-align:center;">—</td>`;
+        const { bg, color } = tHeatColor(v, maxVal);
+        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; font-weight:700; cursor:pointer; background:${bg}; color:${color}; border-radius:7px; transition:transform .1s;">${v}</td>`;
+      }).join("")}
       <td class="muted" style="text-align:center; font-weight:700;">${c.total}</td>
     </tr>
   `).join("");
+
+  tbody.querySelectorAll(".t-etapalegal-cell").forEach(cell=>{
+    cell.addEventListener("click", ()=> openEtapaLegalDetail(cell.dataset.analista, cell.dataset.etapa));
+  });
 }
+
+function openEtapaLegalDetail(analista, etapa){
+  const items = tEtapaLegalGroups[analista + "||" + etapa] || [];
+  document.getElementById("t-etapalegal-detail-title").textContent = `${analista} · ${etapa}`;
+  document.getElementById("t-etapalegal-detail-sub").textContent = `${items.length} negocio(s)`;
+  const tbody = document.getElementById("t-etapalegal-detail-tbody");
+  tbody.innerHTML = items.map(it => `
+    <tr class="t-etapalegal-detail-row" data-nid="${it.nid}" style="cursor:pointer;">
+      <td class="nid">${it.nid}</td>
+      <td class="val">${it.proyecto || "—"}</td>
+      <td class="muted">${it.estado || "—"}</td>
+    </tr>
+  `).join("");
+  tbody.querySelectorAll(".t-etapalegal-detail-row").forEach(row=>{
+    row.addEventListener("click", ()=>{
+      document.getElementById("t-etapalegal-detail-overlay").classList.remove("show");
+      openTramitesModal(row.dataset.nid);
+    });
+  });
+  document.getElementById("t-etapalegal-detail-overlay").classList.add("show");
+}
+document.getElementById("t-etapalegal-detail-close").addEventListener("click", ()=>{
+  document.getElementById("t-etapalegal-detail-overlay").classList.remove("show");
+});
+document.getElementById("t-etapalegal-detail-overlay").addEventListener("click", (e)=>{
+  if(e.target.id === "t-etapalegal-detail-overlay") e.currentTarget.classList.remove("show");
+});
 
 function renderTramitesAll(){
   renderTramitesFilters();
