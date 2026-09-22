@@ -636,7 +636,14 @@
       <div id="v-sla-chart"></div>
     </div>
     <div class="chart-card">
-      <div class="chart-card-title">Casos entregados fuera del SLA de 5 días hábiles</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+        <div class="chart-card-title" style="margin-bottom:0;">Casos entregados fuera del SLA de 5 días hábiles</div>
+        <select class="analista-select" id="v-vencidos-sort" style="min-width:200px;">
+          <option value="retraso-desc">Más atrasados primero</option>
+          <option value="entrega-desc">Entrega más reciente primero</option>
+          <option value="entrega-asc">Entrega más antigua primero</option>
+        </select>
+      </div>
       <div id="v-vencidos-list"></div>
     </div>
 
@@ -2573,6 +2580,7 @@ const veranoSample = [
 let veranoEnriched = [];
 let vVencidosRows = [];
 let vVencidosExpanded = false;
+let vVencidosSort = "retraso-desc";
 let vCurrentAnalistas = new Set(); // vacío = todos
 let vCurrentEstado = "todos";
 let vSearchTerm = "";
@@ -2921,11 +2929,23 @@ function veranoRenderSLASection(){
   const keys = Object.keys(monthly).sort();
   document.getElementById("v-sla-chart").innerHTML = veranoBuildChartSVG(keys, monthly);
 
-  vVencidosRows = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS).sort((a,b) => b.diasHab - a.diasHab);
+  vVencidosRows = veranoSortVencidos(entregados.filter(r => r.diasHab > VERANO_SLA_DIAS));
   veranoRenderVencidosList();
 }
 
 const V_VENCIDOS_PREVIEW = 5;
+function veranoSortVencidos(rows){
+  const sorted = [...rows];
+  if(vVencidosSort === "entrega-desc") sorted.sort((a,b) => b.fechaEntrega.localeCompare(a.fechaEntrega) || b.diasHab - a.diasHab);
+  else if(vVencidosSort === "entrega-asc") sorted.sort((a,b) => a.fechaEntrega.localeCompare(b.fechaEntrega) || b.diasHab - a.diasHab);
+  else sorted.sort((a,b) => b.diasHab - a.diasHab);
+  return sorted;
+}
+document.getElementById("v-vencidos-sort").addEventListener("change", (e)=>{
+  vVencidosSort = e.target.value;
+  vVencidosRows = veranoSortVencidos(vVencidosRows);
+  veranoRenderVencidosList();
+});
 function veranoRenderVencidosList(){
   const listEl = document.getElementById("v-vencidos-list");
   if(vVencidosRows.length === 0){
