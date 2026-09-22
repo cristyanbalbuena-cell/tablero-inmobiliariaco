@@ -2323,15 +2323,15 @@ function renderTramitesAnalistaMetrics(rows, containerId){
 let tEtapaLegalGroups = {};
 // Mismos colores que ya usas en el desplegable de "Etapa de legalización" en Sheets.
 const ETAPA_LEGAL_STYLE = {
-  "Preliminar": { rgb:[250,204,21], dark:"#854D0E" },
-  "Avaluo": { rgb:[74,222,128], dark:"#166534" },
-  "Estudio de titulos": { rgb:[251,146,60], dark:"#9A3412" },
-  "Cancelacion de limitaciones": { rgb:[96,165,250], dark:"#1E40AF" },
-  "Pendiente documentos vendedor": { rgb:[148,163,184], dark:"#374151" },
-  "En subsanacion Legalizacion": { rgb:[192,132,252], dark:"#6B21A8" },
-  "Cancelacion hipoteca": { rgb:[161,98,7], dark:"#78350F" },
-  "En espera ET verano": { rgb:[45,181,120], dark:"#065F46" },
-  "En gestion de notaria": { rgb:[59,110,224], dark:"#1E3A8A" }
+  "Preliminar": { rgb:[255,184,112], dark:"#9A5B10" },
+  "Avaluo": { rgb:[52,211,153], dark:"#0F6B4C" },
+  "Estudio de titulos": { rgb:[251,113,133], dark:"#9F1239" },
+  "Cancelacion de limitaciones": { rgb:[56,189,248], dark:"#0C5C82" },
+  "Pendiente documentos vendedor": { rgb:[161,168,201], dark:"#3D4266" },
+  "En subsanacion Legalizacion": { rgb:[167,139,250], dark:"#5B21B6" },
+  "Cancelacion hipoteca": { rgb:[194,112,61], dark:"#7A3D14" },
+  "En espera ET verano": { rgb:[16,185,129], dark:"#065F46" },
+  "En gestion de notaria": { rgb:[99,102,241], dark:"#312E81" }
 };
 function tHeatColor(v, max, etapa){
   if(!v) return { bg: "transparent", color: "var(--ink-soft)" };
