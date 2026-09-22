@@ -620,18 +620,7 @@
           <tbody id="t-etapalegal-matrix"></tbody>
         </table>
       </div>
-      <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:12px; font-size:11.5px; color:var(--ink-soft);">
-        <span>Menos casos</span>
-        <span style="display:inline-flex; border-radius:6px; overflow:hidden; border:1px solid var(--line);">
-          <span style="width:22px; height:14px; background:rgba(109,40,217,0.14);"></span>
-          <span style="width:22px; height:14px; background:rgba(109,40,217,0.34);"></span>
-          <span style="width:22px; height:14px; background:rgba(109,40,217,0.54);"></span>
-          <span style="width:22px; height:14px; background:rgba(109,40,217,0.72);"></span>
-          <span style="width:22px; height:14px; background:rgba(109,40,217,0.9);"></span>
-        </span>
-        <span>Más casos</span>
-        <span style="margin-left:10px;">· Clic en un número para ver el detalle</span>
-      </div>
+      <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; margin-top:14px; font-size:11.5px; color:var(--ink-soft);" id="t-etapalegal-legend"></div>
     </div>
   </div>
 
@@ -2332,11 +2321,25 @@ function renderTramitesAnalistaMetrics(rows, containerId){
 }
 
 let tEtapaLegalGroups = {};
-function tHeatColor(v, max){
+// Mismos colores que ya usas en el desplegable de "Etapa de legalización" en Sheets.
+const ETAPA_LEGAL_STYLE = {
+  "Preliminar": { rgb:[250,204,21], dark:"#854D0E" },
+  "Avaluo": { rgb:[74,222,128], dark:"#166534" },
+  "Estudio de titulos": { rgb:[251,146,60], dark:"#9A3412" },
+  "Cancelacion de limitaciones": { rgb:[96,165,250], dark:"#1E40AF" },
+  "Pendiente documentos vendedor": { rgb:[148,163,184], dark:"#374151" },
+  "En subsanacion Legalizacion": { rgb:[192,132,252], dark:"#6B21A8" },
+  "Cancelacion hipoteca": { rgb:[161,98,7], dark:"#78350F" },
+  "En espera ET verano": { rgb:[45,181,120], dark:"#065F46" },
+  "En gestion de notaria": { rgb:[59,110,224], dark:"#1E3A8A" }
+};
+function tHeatColor(v, max, etapa){
   if(!v) return { bg: "transparent", color: "var(--ink-soft)" };
+  const style = ETAPA_LEGAL_STYLE[etapa] || { rgb:[109,40,217], dark:"#4C1D95" };
+  const [r,g,b] = style.rgb;
   const ratio = max > 0 ? v / max : 0;
-  const alpha = 0.14 + ratio * 0.66;
-  return { bg: `rgba(109,40,217,${alpha.toFixed(2)})`, color: alpha > 0.48 ? "#fff" : "#4C1D95" };
+  const alpha = 0.28 + ratio * 0.62;
+  return { bg: `rgba(${r},${g},${b},${alpha.toFixed(2)})`, color: alpha > 0.55 ? "#fff" : style.dark };
 }
 
 function renderEtapaLegalPorAnalista(rows){
@@ -2360,7 +2363,11 @@ function renderEtapaLegalPorAnalista(rows){
     tbody.innerHTML = `<tr><td colspan="${ETAPA_LEGAL_OPCIONES.length + 2}" class="no-results">Sin datos</td></tr>`;
     return;
   }
-  const maxVal = Math.max(1, ...entries.flatMap(([,c]) => ETAPA_LEGAL_OPCIONES.map(e => c[e] || 0)));
+  // Máximo POR COLUMNA (por etapa), no global, así cada columna aprovecha su propio rango de color.
+  const maxPorEtapa = {};
+  ETAPA_LEGAL_OPCIONES.forEach(e => {
+    maxPorEtapa[e] = Math.max(1, ...entries.map(([,c]) => c[e] || 0));
+  });
 
   tbody.innerHTML = entries.map(([name, c]) => `
     <tr>
@@ -2368,8 +2375,8 @@ function renderEtapaLegalPorAnalista(rows){
       ${ETAPA_LEGAL_OPCIONES.map(e=>{
         const v = c[e] || 0;
         if(v === 0) return `<td class="muted" style="text-align:center;">—</td>`;
-        const { bg, color } = tHeatColor(v, maxVal);
-        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; font-weight:700; cursor:pointer; background:${bg}; color:${color}; border-radius:7px; transition:transform .1s;">${v}</td>`;
+        const { bg, color } = tHeatColor(v, maxPorEtapa[e], e);
+        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; font-weight:700; cursor:pointer; background:${bg}; color:${color}; border-radius:8px;">${v}</td>`;
       }).join("")}
       <td class="muted" style="text-align:center; font-weight:700;">${c.total}</td>
     </tr>
@@ -2378,6 +2385,16 @@ function renderEtapaLegalPorAnalista(rows){
   tbody.querySelectorAll(".t-etapalegal-cell").forEach(cell=>{
     cell.addEventListener("click", ()=> openEtapaLegalDetail(cell.dataset.analista, cell.dataset.etapa));
   });
+
+  document.getElementById("t-etapalegal-legend").innerHTML =
+    ETAPA_LEGAL_OPCIONES.map(e=>{
+      const style = ETAPA_LEGAL_STYLE[e] || { rgb:[109,40,217], dark:"#4C1D95" };
+      const [r,g,b] = style.rgb;
+      return `<span style="display:inline-flex; align-items:center; gap:6px;">
+        <span style="width:11px; height:11px; border-radius:3px; background:rgb(${r},${g},${b});"></span>${e}
+      </span>`;
+    }).join("") +
+    `<span style="margin-left:4px;">· más intenso = más casos · clic en un número para ver el detalle</span>`;
 }
 
 function openEtapaLegalDetail(analista, etapa){
