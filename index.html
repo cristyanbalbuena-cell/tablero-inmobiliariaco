@@ -286,6 +286,12 @@
   .v-vencido-nid{ font-weight:700; color:var(--ink); min-width:110px; }
   .v-vencido-detalle{ color:var(--ink-soft); flex:1; }
   .v-vencido-dias{ font-weight:700; color:var(--red); white-space:nowrap; background:#fff; padding:3px 10px; border-radius:999px; }
+  .v-vencidos-scroll{ max-height:360px; overflow-y:auto; padding-right:4px; }
+  .v-vencidos-toggle-btn{
+    display:block; margin:12px auto 2px; border:1px solid var(--line); background:#fff; color:var(--habi-purple);
+    font-family:inherit; font-size:12.5px; font-weight:700; padding:8px 16px; border-radius:999px; cursor:pointer;
+  }
+  .v-vencidos-toggle-btn:hover{ background:#F7F5FB; border-color:var(--habi-purple); }
 
   .val{ font-weight:700; }
   .row-archivado{ background:#F7F7F8; color:var(--ink-soft); }
@@ -2565,6 +2571,8 @@ const veranoSample = [
 ];
 
 let veranoEnriched = [];
+let vVencidosRows = [];
+let vVencidosExpanded = false;
 let vCurrentAnalistas = new Set(); // vacío = todos
 let vCurrentEstado = "todos";
 let vSearchTerm = "";
@@ -2846,7 +2854,7 @@ function veranoBuildChartSVG(keys, monthly){
     const y = topPad + chartH - h;
     return `
       <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h,2)}" rx="8" fill="url(#vBarGrad)"></rect>
-      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#3B2A6B">${counts[i]}</text>
+      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#4C1D95">${counts[i]}</text>
       <text x="${x + barW/2}" y="${topPad + chartH + 22}" text-anchor="middle" font-size="11.5" fill="#6B7280">${veranoMesLabel(k)}</text>
     `;
   }).join("");
@@ -2858,8 +2866,8 @@ function veranoBuildChartSVG(keys, monthly){
   });
   const polyline = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const dotsAndLabels = points.map(p => `
-    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#F97316" stroke="#fff" stroke-width="1.6"></circle>
-    <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#C2410C">${p.val.toFixed(1)}d</text>
+    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#FB7185" stroke="#fff" stroke-width="1.6"></circle>
+    <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#E11D48">${p.val.toFixed(1)}d</text>
   `).join("");
 
   const slaY = topPad + chartH - (VERANO_SLA_DIAS/maxAvg)*chartH;
@@ -2868,20 +2876,21 @@ function veranoBuildChartSVG(keys, monthly){
   <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${Math.min(W,900)}px; display:block; margin:0 auto; overflow:visible;">
     <defs>
       <linearGradient id="vBarGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#B4A0F7"></stop>
-        <stop offset="100%" stop-color="#6D28D9"></stop>
+        <stop offset="0%" stop-color="#22D3EE"></stop>
+        <stop offset="55%" stop-color="#6366F1"></stop>
+        <stop offset="100%" stop-color="#4C1D95"></stop>
       </linearGradient>
     </defs>
     <line x1="${leftPad}" y1="${topPad+chartH}" x2="${W-rightPad}" y2="${topPad+chartH}" stroke="#E5E7EB" stroke-width="1"></line>
     <line x1="${leftPad}" y1="${slaY.toFixed(1)}" x2="${W-rightPad}" y2="${slaY.toFixed(1)}" stroke="#DC2626" stroke-width="1.4" stroke-dasharray="5,4"></line>
     <text x="${W-rightPad+8}" y="${(slaY+4).toFixed(1)}" font-size="11" fill="#DC2626" font-weight="700">SLA 5d</text>
     ${barsSVG}
-    <polyline points="${polyline}" fill="none" stroke="#F97316" stroke-width="2.2"></polyline>
+    <polyline points="${polyline}" fill="none" stroke="#FB7185" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
     ${dotsAndLabels}
   </svg>
   <div style="display:flex; justify-content:center; gap:22px; margin-top:6px; font-size:11.5px; color:var(--ink-soft);">
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#6D28D9;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#F97316;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#6366F1;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#FB7185;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
   </div>
   `;
 }
@@ -2912,20 +2921,46 @@ function veranoRenderSLASection(){
   const keys = Object.keys(monthly).sort();
   document.getElementById("v-sla-chart").innerHTML = veranoBuildChartSVG(keys, monthly);
 
-  const vencidosRows = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS).sort((a,b) => b.diasHab - a.diasHab);
+  vVencidosRows = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS).sort((a,b) => b.diasHab - a.diasHab);
+  veranoRenderVencidosList();
+}
+
+const V_VENCIDOS_PREVIEW = 5;
+function veranoRenderVencidosList(){
   const listEl = document.getElementById("v-vencidos-list");
-  if(vencidosRows.length === 0){
+  if(vVencidosRows.length === 0){
     listEl.innerHTML = `<div class="no-results">🎉 Ningún estudio entregado superó el SLA de 5 días hábiles.</div>`;
-  } else {
-    listEl.innerHTML = vencidosRows.map(r=>{
-      const retraso = r.diasHab - VERANO_SLA_DIAS;
-      return `
-      <div class="v-vencido-item">
-        <span class="v-vencido-nid">Caso ${r.nid}</span>
-        <span class="v-vencido-detalle">Asignado el ${fmtFecha(r.fechaAsignacion)} y entregado el ${fmtFecha(r.fechaEntrega)}</span>
-        <span class="v-vencido-dias">${retraso} día${retraso === 1 ? "" : "s"} hábil${retraso === 1 ? "" : "es"} de retraso</span>
-      </div>`;
-    }).join("");
+    return;
+  }
+  const showAll = vVencidosExpanded || vVencidosRows.length <= V_VENCIDOS_PREVIEW;
+  const rowsToShow = showAll ? vVencidosRows : vVencidosRows.slice(0, V_VENCIDOS_PREVIEW);
+
+  const itemsHtml = rowsToShow.map(r=>{
+    const retraso = r.diasHab - VERANO_SLA_DIAS;
+    return `
+    <div class="v-vencido-item">
+      <span class="v-vencido-nid">Caso ${r.nid}</span>
+      <span class="v-vencido-detalle">Asignado el ${fmtFecha(r.fechaAsignacion)} y entregado el ${fmtFecha(r.fechaEntrega)}</span>
+      <span class="v-vencido-dias">${retraso} día${retraso === 1 ? "" : "s"} hábil${retraso === 1 ? "" : "es"} de retraso</span>
+    </div>`;
+  }).join("");
+
+  const toggleHtml = vVencidosRows.length <= V_VENCIDOS_PREVIEW ? "" : `
+    <button type="button" id="v-vencidos-toggle" class="v-vencidos-toggle-btn">
+      ${showAll ? "Ver solo los 5 más críticos ↑" : `Ver los ${vVencidosRows.length} casos vencidos ↓`}
+    </button>`;
+
+  listEl.innerHTML = `
+    <div class="${showAll ? 'v-vencidos-scroll' : ''}">${itemsHtml}</div>
+    ${toggleHtml}
+  `;
+
+  const btn = document.getElementById("v-vencidos-toggle");
+  if(btn){
+    btn.addEventListener("click", ()=>{
+      vVencidosExpanded = !vVencidosExpanded;
+      veranoRenderVencidosList();
+    });
   }
 }
 
