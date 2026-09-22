@@ -44,7 +44,7 @@
     opacity:.08; pointer-events:none;
   }
   .habi-logo{ display:flex; align-items:center; gap:10px; position:relative; z-index:1; }
-  .habi-mark{ width:50px; height:50px; flex:none; }
+  .habi-mark{ width:56px; height:56px; flex:none; overflow:visible; }
   .topbar-title{ font-size:13px; color:var(--ink-soft); font-weight:600; position:relative; z-index:1; }
   .topbar-right{ display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
   .sync-status{ font-size:12px; color:var(--ink-soft); display:flex; align-items:center; gap:6px; }
@@ -381,25 +381,21 @@
 <body>
 <div class="topbar">
   <div class="habi-logo">
-    <svg class="habi-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <svg class="habi-mark" viewBox="-6 -6 112 112" xmlns="http://www.w3.org/2000/svg">
       <path d="M50 6
-               C46 6 43 8 41 11
-               L24 36
-               C20 41 19 45 19 50
-               L19 78
-               C19 85 24 90 31 90
-               L69 90
-               C76 90 81 85 81 78
-               L81 50
-               C81 45 80 41 76 36
-               L59 11
-               C57 8 54 6 50 6 Z" fill="url(#habiGrad)"/>
-      <circle cx="78" cy="12" r="6.5" fill="var(--habi-coral)"/>
-      <text x="50" y="70" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="30" fill="#ffffff" letter-spacing="-1">habi</text>
+               C 34 6 21 18.5 21 34
+               L 21 78
+               C 21 85 27 91 34 91
+               L 66 91
+               C 73 91 79 85 79 78
+               L 79 34
+               C 79 18.5 66 6 50 6 Z" fill="url(#habiGrad)"/>
+      <circle cx="76" cy="10" r="7.5" fill="var(--habi-coral)"/>
+      <text x="50" y="68" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="800" font-size="28" fill="#ffffff" letter-spacing="-1">habi</text>
       <defs>
-        <linearGradient id="habiGrad" x1="19" y1="4" x2="81" y2="97" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stop-color="#9F6BF0"/>
-          <stop offset="1" stop-color="#5B21B6"/>
+        <linearGradient id="habiGrad" x1="21" y1="6" x2="79" y2="91" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#8B5CF6"/>
+          <stop offset="1" stop-color="#6425C9"/>
         </linearGradient>
       </defs>
     </svg>
