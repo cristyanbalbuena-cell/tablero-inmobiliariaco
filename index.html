@@ -243,6 +243,41 @@
   .sla-fill{ height:100%; border-radius:99px; }
   .sla-txt{ font-size:11.5px; color:var(--ink-soft); }
 
+  /* ---- Estudio de Títulos Verano: selector ESTADO editable en vivo ---- */
+  .v-select{
+    appearance:none; -webkit-appearance:none; border:none; border-radius:999px;
+    font-size:11.5px; font-weight:700; padding:6px 26px 6px 12px; cursor:pointer; font-family:inherit;
+    background-repeat:no-repeat; background-position:right 9px center; background-size:9px;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  }
+  .v-select:focus{ outline:2px solid rgba(109,40,217,.35); }
+  .v-select.v-ok{ background-color:#DCFCE7; color:#166534; }
+  .v-select.v-gestion{ background-color:#DBEAFE; color:#1E3A8A; }
+  .v-select.v-noaplica{ background-color:#FDEBD3; color:#92400E; }
+  .v-select.v-devuelto{ background-color:#7F1D1D; color:#fff; font-weight:800; }
+  .v-select.v-subsanado{ background-color:#FFEDD5; color:#C2410C; }
+  .v-select.v-saving{ opacity:.55; }
+
+  .multiselect{ position:relative; }
+  .multiselect-btn{
+    border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:13px;
+    font-family:inherit; color:var(--ink-soft); font-weight:600; background:#fff; min-width:170px;
+    cursor:pointer; text-align:left;
+  }
+  .multiselect-btn:hover{ border-color:var(--habi-purple); }
+  .multiselect-panel{
+    display:none; position:absolute; top:calc(100% + 6px); left:0; background:#fff;
+    border:1px solid var(--line); border-radius:10px; box-shadow:0 10px 28px rgba(17,24,39,.12);
+    padding:8px; z-index:30; min-width:240px; max-height:280px; overflow-y:auto;
+  }
+  .multiselect-panel.show{ display:block; }
+  .multiselect-panel label{
+    display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink);
+    padding:6px 8px; border-radius:6px; cursor:pointer; white-space:nowrap;
+  }
+  .multiselect-panel label:hover{ background:#F7F5FB; }
+  .multiselect-panel .ms-divider{ height:1px; background:var(--line); margin:6px 0; }
+
   .val{ font-weight:700; }
   .row-archivado{ background:#F7F7F8; color:var(--ink-soft); }
   .row-archivado .badge{ opacity:.85; }
@@ -373,6 +408,7 @@
     <button class="tab-btn" data-tab="metricas">📈 Métricas</button>
     <button class="tab-btn" data-tab="tramites">🏗️ Trámites</button>
     <button class="tab-btn" data-tab="tramites-metricas">📈 Métricas Trámites</button>
+    <button class="tab-btn" data-tab="verano">🏛️ Estudio de Títulos Verano</button>
   </div>
 
   <div class="tab-panel active" id="tab-resumen">
@@ -568,6 +604,54 @@
         </table>
       </div>
     </div>
+  </div>
+
+  <div class="tab-panel" id="tab-verano">
+    <div class="eyebrow">Estudio de Títulos Verano / Inmobiliaria</div>
+
+    <div class="banner" id="v-banner">⚠️ No se pudo conectar en vivo al Google Sheet — mostrando datos de ejemplo.</div>
+
+    <div class="section-title">Resumen</div>
+    <div class="metrics" id="v-metrics"></div>
+
+    <div class="toolbar">
+      <div class="multiselect" id="v-analista-multiselect">
+        <button type="button" class="multiselect-btn" id="v-analista-btn">Analista <span id="v-analista-count"></span> ▾</button>
+        <div class="multiselect-panel" id="v-analista-panel"></div>
+      </div>
+      <select class="analista-select" id="v-estado-filter"></select>
+      <button class="refresh-btn" id="v-clear-filters">✕ Limpiar filtros</button>
+      <div class="search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="v-search" placeholder="Buscar por NID o nombre…" autocomplete="off">
+        <button id="v-search-clear" title="Limpiar">✕</button>
+      </div>
+      <span class="muted" id="v-save-status" style="font-size:12px;"></span>
+    </div>
+
+    <div class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>NID</th>
+              <th>Nombre</th>
+              <th>Analista</th>
+              <th>Entidad financiadora</th>
+              <th>Etapa</th>
+              <th>Estado</th>
+              <th>SLA (5d hábiles)</th>
+              <th>Fecha asignación</th>
+              <th>Fecha entrega</th>
+              <th>Contacto</th>
+              <th>Comentarios</th>
+            </tr>
+          </thead>
+          <tbody id="v-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="footer-note" id="v-footer-note"></div>
   </div>
 </div>
 
@@ -1489,7 +1573,7 @@ function applyFilter(key){
 }
 
 function isArchivado(r){
-  return r.etapa === "DESEMBOLSADO" && r.finalizado === "OK";
+  return (r.etapa === "DESEMBOLSADO" || r.etapa === "FINALIZADO") && r.finalizado === "OK";
 }
 
 // Solo para la TABLA de gestión activa: si "Mostrar finalizados" está apagado,
@@ -2407,6 +2491,363 @@ document.getElementById("t-add-comment-btn").addEventListener("click", async ()=
 
 loadTramitesData();
 setInterval(loadTramitesData, AUTO_REFRESH_MS);
+
+// =========================================================================
+// TABLERO 3 — ESTUDIO DE TÍTULOS VERANO / INMOBILIARIA (Google Sheet aparte)
+// =========================================================================
+const VERANO_SPREADSHEET_ID = "15ThDdCB-v6DjaYb4CV4mJmNcPnRqabJOfdtU3KyENQI";
+const VERANO_GID = "1143829955";
+const VERANO_SHEET_NAME = "Inmobiliaria";
+const VERANO_GVIZ_URL = `https://docs.google.com/spreadsheets/d/${VERANO_SPREADSHEET_ID}/gviz/tq?gid=${VERANO_GID}&headers=1&tqx=out:json;responseHandler:__gvizCallbackV`;
+const VERANO_CSV_URLS = [
+  `https://docs.google.com/spreadsheets/d/${VERANO_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${VERANO_GID}`
+];
+const VERANO_SLA_DIAS = 5;
+
+// Mismo mapeo analista → correo usado en las alertas de Trámites (Codigo.gs),
+// invertido aquí para mostrar el nombre completo a partir del correo que trae la hoja.
+const VERANO_ANALISTA_POR_CORREO = {
+  "evelincasallas": "Evelin Casallas",
+  "jefersonlandinez": "Jeferson Moreno",
+  "angiedaza": "Angie Daza",
+  "linasuarez": "Lina Suarez",
+  "dannynino": "Danny Perez",
+  "juanpulido": "Sebastian Pulido",
+  "leidycuchimba": "Leidy Cuchimba",
+  "yanurymora": "Marcela Mora",
+  "ivonnemerchan": "Ivonne Merchand"
+};
+function veranoAnalistaLabel(raw){
+  const v = (raw || "").trim();
+  if(!v) return "Sin asignar";
+  if(v.includes("@")){
+    const prefix = v.split("@")[0].toLowerCase();
+    return VERANO_ANALISTA_POR_CORREO[prefix] || titleCase(prefix);
+  }
+  return v;
+}
+
+// Los 5 estados posibles del desplegable, con su clase de color.
+const V_ESTADO_OPCIONES = ["OK ESTUDIO","EN GESTION","NO APLICA","DEVUELTO","SUBSANADO"];
+const V_ESTADO_CLASE = {
+  "OK ESTUDIO": "v-ok",
+  "EN GESTION": "v-gestion",
+  "NO APLICA": "v-noaplica",
+  "DEVUELTO": "v-devuelto",
+  "SUBSANADO": "v-subsanado"
+};
+
+// ---- Datos de ejemplo (respaldo si la conexión en vivo falla) ----
+const veranoSample = [
+  { nid:"19338661724", nombre:"Conjunto Madeira", conteoDias:"2", fechaAsignacion:"2026-09-10", mes:"Septiembre", etapa:"Estudio de títulos", analista:"dannynino@habi.co", entidad:"Credito Bancos", vendedor:"—", estadoCivil:"Soltero", correo:"cliente1@correo.com", cel:"3001234567", comentariosTramites:"", comentariosVerano:"En revisión de antecedentes registrales.", fechaEntrega:"", promedioDias:"2", estado:"EN GESTION" },
+  { nid:"19006704698", nombre:"Fontana 2", conteoDias:"6", fechaAsignacion:"2026-09-05", mes:"Septiembre", etapa:"Estudio de títulos", analista:"linasuarez@habi.co", entidad:"Credito Bancos", vendedor:"—", estadoCivil:"Casado", correo:"cliente2@correo.com", cel:"3007654321", comentariosTramites:"", comentariosVerano:"Falta paz y salvo de administración.", fechaEntrega:"", promedioDias:"6", estado:"DEVUELTO" },
+  { nid:"12830522633", nombre:"Albahaca", conteoDias:"1", fechaAsignacion:"2026-09-15", mes:"Septiembre", etapa:"Estudio de títulos", analista:"juanpulido@habi.co", entidad:"Contado", vendedor:"—", estadoCivil:"Soltero", correo:"cliente3@correo.com", cel:"3009876543", comentariosTramites:"", comentariosVerano:"", fechaEntrega:"2026-09-18", promedioDias:"1", estado:"OK ESTUDIO" }
+];
+
+let veranoEnriched = [];
+let vCurrentAnalistas = new Set(); // vacío = todos
+let vCurrentEstado = "todos";
+let vSearchTerm = "";
+
+function veranoSLA(row){
+  let dias = parseFloat(row.promedioDias);
+  if(isNaN(dias)) dias = parseFloat(row.conteoDias);
+  if(isNaN(dias)) return { sem:"gris", label:"—", dias:null };
+  if(dias <= 2) return { sem:"verde", label:"🟢 Vigente", dias };
+  if(dias <= 4) return { sem:"amarillo", label:"🟡 Próximo a vencer", dias };
+  return { sem:"rojo", label:"🔴 Vencido", dias };
+}
+
+function mapVeranoRow(cols, idx){
+  const get = k => (idx[k] !== undefined && idx[k] !== -1 ? (cols[idx[k]] || "").trim() : "");
+  const nid = get("nid");
+  if(!nid || !/\d/.test(nid)) return null;
+  const estadoRaw = get("estado").toUpperCase().trim();
+  return {
+    nid,
+    nombre: get("nombre") || "—",
+    conteoDias: get("conteoDias"),
+    fechaAsignacion: parseFecha(get("fechaAsignacion")),
+    mes: get("mes") || "—",
+    etapa: get("etapa") || "SIN DATO",
+    analista: veranoAnalistaLabel(get("analista")),
+    entidad: get("entidad") || "—",
+    vendedor: get("vendedor") || "—",
+    estadoCivil: get("estadoCivil") || "—",
+    correo: get("correo") || "—",
+    cel: get("cel") || "—",
+    comentariosTramites: get("comentariosTramites") || "",
+    comentariosVerano: get("comentariosVerano") || "",
+    fechaEntrega: parseFecha(get("fechaEntrega")),
+    promedioDias: get("promedioDias"),
+    estado: V_ESTADO_OPCIONES.includes(estadoRaw) ? estadoRaw : (estadoRaw || "SIN DATO")
+  };
+}
+
+async function loadVeranoData(){
+  const banner = document.getElementById("v-banner");
+  try{
+    let rows;
+    try{
+      const gvizData = await loadViaJSONP_V(VERANO_GVIZ_URL, 20000);
+      if(!gvizData || !gvizData.table) throw new Error("Respuesta gviz inválida");
+      rows = gvizToRows(gvizData);
+    } catch(jsonpErr){
+      const csvText = await fetchFirstWorking(VERANO_CSV_URLS);
+      rows = parseCSV(csvText);
+    }
+    const headers = rows[0];
+    const idx = {
+      nid: findColIndex(headers, ["NID"]),
+      nombre: findColIndex(headers, ["NOMBRE"]),
+      conteoDias: findColIndex(headers, ["CONTEO DIAS EN LA ETAPA"]),
+      fechaAsignacion: findColIndex(headers, ["FECHA DE ASIGNACION"]),
+      mes: findColIndex(headers, ["MES"]),
+      etapa: findColIndex(headers, ["ETAPA"]),
+      analista: findColIndex(headers, ["ANALISTA"]),
+      entidad: findColIndex(headers, ["ENTIDAD FINANCIADORA"]),
+      vendedor: findColIndex(headers, ["NOMBRE VENDEDOR"]),
+      estadoCivil: findColIndex(headers, ["ESTADO CIVIL ACTUAL"]),
+      correo: findColIndex(headers, ["CORREO"]),
+      cel: findColIndex(headers, ["CEL"]),
+      comentariosTramites: findColIndex(headers, ["COMENTARIOS TRAMITES"]),
+      comentariosVerano: findColIndex(headers, ["COMENTARIOS VERANO"]),
+      fechaEntrega: findColIndex(headers, ["FECHA DE ENTREGA"]),
+      promedioDias: findColIndex(headers, ["PROMEDIO DIAS"]),
+      estado: findColIndex(headers, ["ESTADO"])
+    };
+    const parsed = rows.slice(1).map(r => mapVeranoRow(r, idx)).filter(Boolean);
+    if(parsed.length === 0) throw new Error("Sin filas válidas");
+    veranoEnriched = parsed;
+    banner.classList.remove("show");
+  } catch(err){
+    if(veranoEnriched.length === 0) veranoEnriched = veranoSample.map(r => ({...r, estado: r.estado}));
+    banner.classList.add("show");
+    console.warn("Estudio de títulos Verano: no se pudo cargar en vivo:", err);
+  }
+  vRenderAll();
+}
+
+function loadViaJSONP_V(url, timeoutMs){
+  return new Promise((resolve, reject)=>{
+    let done = false;
+    const cbName = "__gvizCallbackV";
+    function cleanup(){ clearTimeout(timer); delete window[cbName]; if(script.parentNode) script.parentNode.removeChild(script); }
+    window[cbName] = function(data){ if(done) return; done = true; resolve(data); cleanup(); };
+    const script = document.createElement("script");
+    script.src = url;
+    script.onerror = () => { if(done) return; done = true; reject(new Error("Error cargando script JSONP")); cleanup(); };
+    document.body.appendChild(script);
+    const timer = setTimeout(() => { if(done) return; done = true; reject(new Error("Timeout JSONP")); cleanup(); }, timeoutMs || 8000);
+  });
+}
+
+function vAllAnalistas(){
+  return [...new Set(veranoEnriched.map(r => r.analista))].sort();
+}
+
+function vFilteredRows(){
+  return veranoEnriched.filter(r=>{
+    if(vCurrentAnalistas.size > 0 && !vCurrentAnalistas.has(r.analista)) return false;
+    if(vCurrentEstado !== "todos" && r.estado !== vCurrentEstado) return false;
+    if(vSearchTerm){
+      const haystack = (r.nid + " " + r.nombre).toLowerCase();
+      if(!haystack.includes(vSearchTerm)) return false;
+    }
+    return true;
+  });
+}
+
+function vRenderAnalistaFilter(){
+  const panel = document.getElementById("v-analista-panel");
+  const nombres = vAllAnalistas();
+  const prevChecked = new Set(vCurrentAnalistas);
+  panel.innerHTML =
+    `<label><input type="checkbox" id="v-analista-all" ${vCurrentAnalistas.size===0 ? "checked" : ""}> <b>Todos</b></label>` +
+    `<div class="ms-divider"></div>` +
+    nombres.map(n => `<label><input type="checkbox" class="v-analista-opt" value="${n}" ${prevChecked.has(n) ? "checked" : ""}> ${n}</label>`).join("");
+
+  document.getElementById("v-analista-all").addEventListener("change", e=>{
+    vCurrentAnalistas.clear();
+    panel.querySelectorAll(".v-analista-opt").forEach(cb => cb.checked = false);
+    vRenderAll();
+  });
+  panel.querySelectorAll(".v-analista-opt").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      if(cb.checked) vCurrentAnalistas.add(cb.value); else vCurrentAnalistas.delete(cb.value);
+      document.getElementById("v-analista-all").checked = vCurrentAnalistas.size === 0;
+      vRenderAll();
+    });
+  });
+
+  const count = vCurrentAnalistas.size;
+  document.getElementById("v-analista-count").textContent = count > 0 ? `(${count})` : "";
+
+  const estadoSel = document.getElementById("v-estado-filter");
+  if(!estadoSel.dataset.built){
+    estadoSel.innerHTML = `<option value="todos">Todos los estados</option>` + V_ESTADO_OPCIONES.map(e=>`<option value="${e}">${e}</option>`).join("");
+    estadoSel.dataset.built = "1";
+  }
+}
+
+document.getElementById("v-analista-btn").addEventListener("click", (e)=>{
+  e.stopPropagation();
+  document.getElementById("v-analista-panel").classList.toggle("show");
+});
+document.addEventListener("click", (e)=>{
+  const ms = document.getElementById("v-analista-multiselect");
+  if(ms && !ms.contains(e.target)) document.getElementById("v-analista-panel").classList.remove("show");
+});
+document.getElementById("v-estado-filter").addEventListener("change", e=>{
+  vCurrentEstado = e.target.value; vRenderAll();
+});
+document.getElementById("v-search").addEventListener("input", e=>{
+  vSearchTerm = e.target.value.trim().toLowerCase();
+  document.querySelector("#tab-verano .search-box").classList.toggle("has-text", vSearchTerm.length > 0);
+  vRenderAll();
+});
+document.getElementById("v-search-clear").addEventListener("click", ()=>{
+  document.getElementById("v-search").value = "";
+  vSearchTerm = "";
+  document.querySelector("#tab-verano .search-box").classList.remove("has-text");
+  vRenderAll();
+});
+document.getElementById("v-clear-filters").addEventListener("click", ()=>{
+  vCurrentAnalistas.clear();
+  vCurrentEstado = "todos";
+  vSearchTerm = "";
+  document.getElementById("v-estado-filter").value = "todos";
+  document.getElementById("v-search").value = "";
+  document.querySelector("#tab-verano .search-box").classList.remove("has-text");
+  vRenderAll();
+});
+
+function vRenderKPIs(){
+  const total = veranoEnriched.length;
+  const counts = {}; V_ESTADO_OPCIONES.forEach(o => counts[o] = 0);
+  veranoEnriched.forEach(r => { if(counts[r.estado] !== undefined) counts[r.estado]++; });
+  const vencidos = veranoEnriched.filter(r => veranoSLA(r).sem === "rojo").length;
+
+  const cards = [
+    { label:"Total registros", value: total },
+    { label:"🟢 OK Estudio", value: counts["OK ESTUDIO"] },
+    { label:"🔵 En gestión", value: counts["EN GESTION"] },
+    { label:"🔴 Devuelto", value: counts["DEVUELTO"] },
+    { label:"🟠 Subsanado", value: counts["SUBSANADO"] },
+    { label:"⚪ No aplica", value: counts["NO APLICA"] },
+    { label:"SLA vencido (5d+)", value: vencidos }
+  ];
+  document.getElementById("v-metrics").innerHTML = cards.map(c => `
+    <div class="metric-card">
+      <div class="metric-label">${c.label}</div>
+      <div class="metric-value">${c.value}</div>
+    </div>
+  `).join("");
+}
+
+function vRenderTable(rows){
+  const tbody = document.getElementById("v-tbody");
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="11" class="no-results">Sin resultados para estos filtros.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(r=>{
+    const sla = veranoSLA(r);
+    const slaColor = sla.sem === "verde" ? "var(--green)" : sla.sem === "amarillo" ? "var(--amber)" : sla.sem === "rojo" ? "var(--red)" : "var(--ink-soft)";
+    const comentarios = [r.comentariosVerano, r.comentariosTramites].filter(Boolean).join(" · ") || "—";
+    const opciones = V_ESTADO_OPCIONES.includes(r.estado) ? V_ESTADO_OPCIONES : [r.estado, ...V_ESTADO_OPCIONES];
+    return `
+    <tr data-nid="${r.nid}">
+      <td class="nid">${r.nid}</td>
+      <td><span class="val">${r.nombre}</span><span class="conjunto">${r.vendedor !== "—" ? "Vendedor: " + r.vendedor : ""}</span></td>
+      <td>${r.analista}</td>
+      <td>${r.entidad}</td>
+      <td>${r.etapa}</td>
+      <td>
+        <select class="v-select v-estado-select ${V_ESTADO_CLASE[r.estado] || ''}" data-nid="${r.nid}">
+          ${opciones.map(o => `<option value="${o}" ${o === r.estado ? "selected" : ""}>${o}</option>`).join("")}
+        </select>
+      </td>
+      <td><span style="color:${slaColor}; font-weight:700; font-size:12.5px;">${sla.label}</span></td>
+      <td>${fmtFecha(r.fechaAsignacion)}</td>
+      <td>${fmtFecha(r.fechaEntrega)}</td>
+      <td style="font-size:12px; color:var(--ink-soft);">${r.correo}<br>${r.cel}</td>
+      <td style="white-space:normal; max-width:220px; font-size:12.5px; color:var(--ink-soft);" title="${comentarios.replace(/"/g,'&quot;')}">${comentarios}</td>
+    </tr>`;
+  }).join("");
+
+  tbody.querySelectorAll(".v-estado-select").forEach(sel=>{
+    sel.addEventListener("change", (e)=>{
+      handleStatusChange(e.target.dataset.nid, e.target.value);
+    });
+  });
+}
+
+function vRenderAll(){
+  vRenderAnalistaFilter();
+  vRenderKPIs();
+  vRenderTable(vFilteredRows());
+  const footer = document.getElementById("v-footer-note");
+  footer.textContent = `${vFilteredRows().length} de ${veranoEnriched.length} registros · Sheet: Estudio de Títulos Verano · pestaña "Inmobiliaria"`;
+}
+
+function setVSaveStatus(msg, kind){
+  const el = document.getElementById("v-save-status");
+  el.textContent = msg;
+  el.style.color = kind === "err" ? "var(--red)" : kind === "ok" ? "var(--green)" : "var(--ink-soft)";
+}
+
+// Cambia el ESTADO de un registro: actualiza la UI de inmediato (KPIs + badge del
+// desplegable) y en paralelo envía el cambio al Google Sheet vía el Web App.
+async function handleStatusChange(nid, newStatus){
+  const row = veranoEnriched.find(r => r.nid === nid);
+  if(!row) return;
+  const previousStatus = row.estado;
+  row.estado = newStatus; // actualización optimista
+  vRenderKPIs();
+  const selEl = document.querySelector(`.v-estado-select[data-nid="${nid}"]`);
+  if(selEl){
+    selEl.className = "v-select v-estado-select v-saving " + (V_ESTADO_CLASE[newStatus] || "");
+  }
+
+  if(!WEBAPP_URL){
+    setVSaveStatus("Cambiado en el tablero. (Falta configurar WEBAPP_URL para reflejarlo en Sheets)", "err");
+    if(selEl) selEl.classList.remove("v-saving");
+    return;
+  }
+
+  setVSaveStatus("Guardando \"" + newStatus + "\" en Google Sheets…", "");
+  try{
+    const res = await fetch(WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({
+        nid,
+        field: "estado",
+        value: newStatus,
+        sheet: VERANO_SHEET_NAME,
+        spreadsheetId: VERANO_SPREADSHEET_ID
+      })
+    });
+    const data = await res.json();
+    if(!data.success) throw new Error(data.error || "Error desconocido");
+    setVSaveStatus("✓ Guardado correctamente.", "ok");
+  } catch(err){
+    // Si falla el guardado remoto, revertimos el valor local para no mostrar un estado falso.
+    row.estado = previousStatus;
+    if(selEl){
+      selEl.value = previousStatus;
+      selEl.className = "v-select v-estado-select " + (V_ESTADO_CLASE[previousStatus] || "");
+    }
+    vRenderKPIs();
+    setVSaveStatus("Error al guardar en Sheets: " + err.message, "err");
+  } finally {
+    if(selEl) selEl.classList.remove("v-saving");
+  }
+}
+
+loadVeranoData();
+setInterval(loadVeranoData, AUTO_REFRESH_MS);
 
 // ---- Inicio ----
 loadData(false);
