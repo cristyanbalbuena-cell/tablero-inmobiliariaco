@@ -2668,6 +2668,11 @@ let vCurrentEstado = "todos";
 let vSearchTerm = "";
 
 function veranoSLA(row){
+  // Una vez el estudio queda en OK ESTUDIO, el conteo de SLA se detiene: ya no aplica
+  // "vigente / próximo a vencer / vencido", porque el caso ya está resuelto.
+  if(row.estado === "OK ESTUDIO"){
+    return { sem:"ok", label:"✅ Aprobado", dias:null };
+  }
   let dias = parseFloat(row.promedioDias);
   if(isNaN(dias)) dias = parseFloat(row.conteoDias);
   if(isNaN(dias)) return { sem:"gris", label:"—", dias:null };
@@ -2871,7 +2876,7 @@ function vRenderTable(rows){
   }
   tbody.innerHTML = rows.map(r=>{
     const sla = veranoSLA(r);
-    const slaColor = sla.sem === "verde" ? "var(--green)" : sla.sem === "amarillo" ? "var(--amber)" : sla.sem === "rojo" ? "var(--red)" : "var(--ink-soft)";
+    const slaColor = sla.sem === "verde" ? "var(--green)" : sla.sem === "amarillo" ? "var(--amber)" : sla.sem === "rojo" ? "var(--red)" : sla.sem === "ok" ? "var(--green)" : "var(--ink-soft)";
     const comentarios = [r.comentariosVerano, r.comentariosTramites].filter(Boolean).join(" · ") || "—";
     const opciones = V_ESTADO_OPCIONES.includes(r.estado) ? V_ESTADO_OPCIONES : [r.estado, ...V_ESTADO_OPCIONES];
     return `
