@@ -168,9 +168,9 @@
   .sum-text{ display:flex; flex-direction:column; }
   .sum-label{ font-size:13px; color:var(--ink-soft); font-weight:600; }
   .sum-count{ font-size:22px; font-weight:700; }
-  .c-green .dot{ background:var(--green);} .c-green .sum-count{ color:var(--green); }
-  .c-amber .dot{ background:var(--amber);} .c-amber .sum-count{ color:var(--amber); }
-  .c-red   .dot{ background:var(--red);}   .c-red   .sum-count{ color:var(--red); }
+  .c-verde .dot{ background:var(--green);} .c-verde .sum-count{ color:var(--green); }
+  .c-amarillo .dot{ background:var(--amber);} .c-amarillo .sum-count{ color:var(--amber); }
+  .c-rojo   .dot{ background:var(--red);}   .c-rojo   .sum-count{ color:var(--red); }
 
   .toolbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
   .filters{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -623,11 +623,14 @@
     <div class="chart-card">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
         <div class="chart-card-title" style="margin-bottom:0;">Casos entregados fuera del SLA de 5 días hábiles</div>
-        <select class="analista-select" id="v-vencidos-sort" style="min-width:200px;">
-          <option value="retraso-desc">Más atrasados primero</option>
-          <option value="entrega-desc">Entrega más reciente primero</option>
-          <option value="entrega-asc">Entrega más antigua primero</option>
-        </select>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <select class="analista-select" id="v-vencidos-month" style="min-width:150px;"></select>
+          <select class="analista-select" id="v-vencidos-sort" style="min-width:200px;">
+            <option value="retraso-desc">Más atrasados primero</option>
+            <option value="entrega-desc">Entrega más reciente primero</option>
+            <option value="entrega-asc">Entrega más antigua primero</option>
+          </select>
+        </div>
       </div>
       <div id="v-vencidos-list"></div>
     </div>
@@ -1071,7 +1074,7 @@ function diasHabilesDesde(fechaStr, hoy){
   return count;
 }
 
-const ETAPAS_COMPLETAS = ["DESEMBOLSADO", "FINALIZADO"];
+const ETAPAS_COMPLETAS = ["DESEMBOLSADO", "FINALIZADO", "CONTADO"];
 
 function enrich(items){
   const hoy = new Date();
@@ -2315,15 +2318,6 @@ const ETAPA_LEGAL_STYLE = {
   "En espera ET verano": { rgb:[16,185,129], dark:"#065F46" },
   "En gestion de notaria": { rgb:[99,102,241], dark:"#312E81" }
 };
-function tHeatColor(v, max, etapa){
-  if(!v) return { bg: "transparent", color: "var(--ink-soft)" };
-  const style = ETAPA_LEGAL_STYLE[etapa] || { rgb:[109,40,217], dark:"#4C1D95" };
-  const [r,g,b] = style.rgb;
-  const ratio = max > 0 ? v / max : 0;
-  const alpha = 0.28 + ratio * 0.62;
-  return { bg: `rgba(${r},${g},${b},${alpha.toFixed(2)})`, color: alpha > 0.55 ? "#fff" : style.dark };
-}
-
 function renderEtapaLegalPorAnalista(rows){
   const head = document.getElementById("t-etapalegal-head");
   head.innerHTML = `<th>Analista</th>` + ETAPA_LEGAL_OPCIONES.map(e=>`<th>${e}</th>`).join("") + `<th>Total</th>`;
@@ -2345,11 +2339,6 @@ function renderEtapaLegalPorAnalista(rows){
     tbody.innerHTML = `<tr><td colspan="${ETAPA_LEGAL_OPCIONES.length + 2}" class="no-results">Sin datos</td></tr>`;
     return;
   }
-  // Máximo POR COLUMNA (por etapa), no global, así cada columna aprovecha su propio rango de color.
-  const maxPorEtapa = {};
-  ETAPA_LEGAL_OPCIONES.forEach(e => {
-    maxPorEtapa[e] = Math.max(1, ...entries.map(([,c]) => c[e] || 0));
-  });
 
   tbody.innerHTML = entries.map(([name, c]) => `
     <tr>
@@ -2357,8 +2346,14 @@ function renderEtapaLegalPorAnalista(rows){
       ${ETAPA_LEGAL_OPCIONES.map(e=>{
         const v = c[e] || 0;
         if(v === 0) return `<td class="muted" style="text-align:center;">—</td>`;
-        const { bg, color } = tHeatColor(v, maxPorEtapa[e], e);
-        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; font-weight:700; cursor:pointer; background:${bg}; color:${color}; border-radius:8px;">${v}</td>`;
+        const style = ETAPA_LEGAL_STYLE[e] || { rgb:[109,40,217], dark:"#4C1D95" };
+        const [r,g,b] = style.rgb;
+        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; cursor:pointer; border-radius:8px;">
+          <span style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+            <span class="dot" style="background:rgb(${r},${g},${b});"></span>
+            <b style="font-weight:700; color:var(--ink);">${v}</b>
+          </span>
+        </td>`;
       }).join("")}
       <td class="muted" style="text-align:center; font-weight:700;">${c.total}</td>
     </tr>
@@ -2373,10 +2368,10 @@ function renderEtapaLegalPorAnalista(rows){
       const style = ETAPA_LEGAL_STYLE[e] || { rgb:[109,40,217], dark:"#4C1D95" };
       const [r,g,b] = style.rgb;
       return `<span style="display:inline-flex; align-items:center; gap:6px;">
-        <span style="width:11px; height:11px; border-radius:3px; background:rgb(${r},${g},${b});"></span>${e}
+        <span class="dot" style="background:rgb(${r},${g},${b});"></span>${e}
       </span>`;
     }).join("") +
-    `<span style="margin-left:4px;">· más intenso = más casos · clic en un número para ver el detalle</span>`;
+    `<span style="margin-left:4px;">· clic en un número para ver el detalle</span>`;
 }
 
 function openEtapaLegalDetail(analista, etapa){
@@ -2667,8 +2662,10 @@ const veranoSample = [
 
 let veranoEnriched = [];
 let vVencidosRows = [];
+let vVencidosAll = [];
 let vVencidosExpanded = false;
 let vVencidosSort = "retraso-desc";
+let vVencidosMonth = "todos";
 let vCurrentAnalistas = new Set(); // vacío = todos
 let vCurrentEstado = "todos";
 let vSearchTerm = "";
@@ -2950,7 +2947,7 @@ function veranoBuildChartSVG(keys, monthly){
     const y = topPad + chartH - h;
     return `
       <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h,2)}" rx="8" fill="url(#vBarGrad)"></rect>
-      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#4C1D95">${counts[i]}</text>
+      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#00714A">${counts[i]}</text>
       <text x="${x + barW/2}" y="${topPad + chartH + 22}" text-anchor="middle" font-size="11.5" fill="#6B7280">${veranoMesLabel(k)}</text>
     `;
   }).join("");
@@ -2962,8 +2959,8 @@ function veranoBuildChartSVG(keys, monthly){
   });
   const polyline = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const dotsAndLabels = points.map(p => `
-    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#FB7185" stroke="#fff" stroke-width="1.6"></circle>
-    <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#E11D48">${p.val.toFixed(1)}d</text>
+    <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#000000" stroke="#fff" stroke-width="1.6"></circle>
+    <text x="${p.x.toFixed(1)}" y="${(p.y - 12).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111111">${p.val.toFixed(1)}d</text>
   `).join("");
 
   const slaY = topPad + chartH - (VERANO_SLA_DIAS/maxAvg)*chartH;
@@ -2972,21 +2969,20 @@ function veranoBuildChartSVG(keys, monthly){
   <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${Math.min(W,900)}px; display:block; margin:0 auto; overflow:visible;">
     <defs>
       <linearGradient id="vBarGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#22D3EE"></stop>
-        <stop offset="55%" stop-color="#6366F1"></stop>
-        <stop offset="100%" stop-color="#4C1D95"></stop>
+        <stop offset="0%" stop-color="#4DE3AC"></stop>
+        <stop offset="100%" stop-color="#00D282"></stop>
       </linearGradient>
     </defs>
     <line x1="${leftPad}" y1="${topPad+chartH}" x2="${W-rightPad}" y2="${topPad+chartH}" stroke="#E5E7EB" stroke-width="1"></line>
     <line x1="${leftPad}" y1="${slaY.toFixed(1)}" x2="${W-rightPad}" y2="${slaY.toFixed(1)}" stroke="#DC2626" stroke-width="1.4" stroke-dasharray="5,4"></line>
     <text x="${W-rightPad+8}" y="${(slaY+4).toFixed(1)}" font-size="11" fill="#DC2626" font-weight="700">SLA 5d</text>
     ${barsSVG}
-    <polyline points="${polyline}" fill="none" stroke="#FB7185" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    <polyline points="${polyline}" fill="none" stroke="#000000" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></polyline>
     ${dotsAndLabels}
   </svg>
   <div style="display:flex; justify-content:center; gap:22px; margin-top:6px; font-size:11.5px; color:var(--ink-soft);">
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#6366F1;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#FB7185;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#00D282;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#000000;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
   </div>
   `;
 }
@@ -3017,11 +3013,30 @@ function veranoRenderSLASection(){
   const keys = Object.keys(monthly).sort();
   document.getElementById("v-sla-chart").innerHTML = veranoBuildChartSVG(keys, monthly);
 
-  vVencidosRows = veranoSortVencidos(entregados.filter(r => r.diasHab > VERANO_SLA_DIAS));
+  vVencidosAll = entregados.filter(r => r.diasHab > VERANO_SLA_DIAS);
+  veranoRenderVencidosMonthFilter();
+  vVencidosRows = veranoSortVencidos(veranoFilterVencidosByMonth(vVencidosAll));
   veranoRenderVencidosList();
 }
 
 const V_VENCIDOS_PREVIEW = 5;
+function veranoFilterVencidosByMonth(rows){
+  if(vVencidosMonth === "todos") return rows;
+  return rows.filter(r => r.fechaEntrega.slice(0,7) === vVencidosMonth);
+}
+function veranoRenderVencidosMonthFilter(){
+  const sel = document.getElementById("v-vencidos-month");
+  const meses = [...new Set(vVencidosAll.map(r => r.fechaEntrega.slice(0,7)))].sort();
+  if(vVencidosMonth !== "todos" && !meses.includes(vVencidosMonth)) vVencidosMonth = "todos";
+  sel.innerHTML = `<option value="todos">Todos los meses</option>` +
+    meses.map(m => `<option value="${m}" ${m === vVencidosMonth ? "selected" : ""}>${veranoMesLabel(m)}</option>`).join("");
+  sel.value = vVencidosMonth;
+}
+document.getElementById("v-vencidos-month").addEventListener("change", (e)=>{
+  vVencidosMonth = e.target.value;
+  vVencidosRows = veranoSortVencidos(veranoFilterVencidosByMonth(vVencidosAll));
+  veranoRenderVencidosList();
+});
 function veranoSortVencidos(rows){
   const sorted = [...rows];
   if(vVencidosSort === "entrega-desc") sorted.sort((a,b) => b.fechaEntrega.localeCompare(a.fechaEntrega) || b.diasHab - a.diasHab);
