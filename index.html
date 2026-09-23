@@ -2348,11 +2348,8 @@ function renderEtapaLegalPorAnalista(rows){
         if(v === 0) return `<td class="muted" style="text-align:center;">—</td>`;
         const style = ETAPA_LEGAL_STYLE[e] || { rgb:[109,40,217], dark:"#4C1D95" };
         const [r,g,b] = style.rgb;
-        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; cursor:pointer; border-radius:8px;">
-          <span style="display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-            <span class="dot" style="background:rgb(${r},${g},${b});"></span>
-            <b style="font-weight:700; color:var(--ink);">${v}</b>
-          </span>
+        return `<td class="t-etapalegal-cell" data-analista="${name}" data-etapa="${e}" style="text-align:center; cursor:pointer;">
+          <span class="badge" style="background:rgba(${r},${g},${b},0.16); color:${style.dark};">${v}</span>
         </td>`;
       }).join("")}
       <td class="muted" style="text-align:center; font-weight:700;">${c.total}</td>
@@ -2947,7 +2944,7 @@ function veranoBuildChartSVG(keys, monthly){
     const y = topPad + chartH - h;
     return `
       <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(h,2)}" rx="8" fill="url(#vBarGrad)"></rect>
-      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#00714A">${counts[i]}</text>
+      <text x="${x + barW/2}" y="${y - 10}" text-anchor="middle" font-size="13" font-weight="700" fill="#5B21B6">${counts[i]}</text>
       <text x="${x + barW/2}" y="${topPad + chartH + 22}" text-anchor="middle" font-size="11.5" fill="#6B7280">${veranoMesLabel(k)}</text>
     `;
   }).join("");
@@ -2969,8 +2966,8 @@ function veranoBuildChartSVG(keys, monthly){
   <svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${Math.min(W,900)}px; display:block; margin:0 auto; overflow:visible;">
     <defs>
       <linearGradient id="vBarGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#4DE3AC"></stop>
-        <stop offset="100%" stop-color="#00D282"></stop>
+        <stop offset="0%" stop-color="#A78BFA"></stop>
+        <stop offset="100%" stop-color="#6D28D9"></stop>
       </linearGradient>
     </defs>
     <line x1="${leftPad}" y1="${topPad+chartH}" x2="${W-rightPad}" y2="${topPad+chartH}" stroke="#E5E7EB" stroke-width="1"></line>
@@ -2981,7 +2978,7 @@ function veranoBuildChartSVG(keys, monthly){
     ${dotsAndLabels}
   </svg>
   <div style="display:flex; justify-content:center; gap:22px; margin-top:6px; font-size:11.5px; color:var(--ink-soft);">
-    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#00D282;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
+    <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#6D28D9;margin-right:5px;vertical-align:middle;"></span>Estudios entregados</span>
     <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#000000;margin-right:5px;vertical-align:middle;"></span>Promedio días hábiles</span>
   </div>
   `;
