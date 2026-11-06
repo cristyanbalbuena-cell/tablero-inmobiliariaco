@@ -641,6 +641,25 @@
       </div>
     </div>
 
+    <div class="section-title">Gestión por semana · lunes a sábado <span class="muted" id="sem-etiqueta" style="font-weight:700; color:var(--habi-purple);"></span></div>
+    <div class="metrics-toolbar">
+      <button class="refresh-btn" id="sem-prev" type="button">‹ Semana anterior</button>
+      <select class="analista-select" id="sem-select" style="min-width:310px;"></select>
+      <button class="refresh-btn" id="sem-next" type="button">Semana siguiente ›</button>
+      <button class="refresh-btn" id="sem-actual" type="button">Semana en curso</button>
+      <label for="sem-analista">Analista:</label>
+      <select class="analista-select" id="sem-analista"></select>
+    </div>
+    <div class="metrics" id="sem-kpis" style="margin-bottom:16px;"></div>
+    <div class="chart-card">
+      <div class="table-scroll" id="sem-tabla"></div>
+      <div class="footer-note" id="sem-nota" style="text-align:left; margin-top:10px;"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Historial de semanas <span class="muted" style="font-weight:600;">· gestiones de la semana frente a su meta · clic en una semana para verla arriba</span></div>
+      <div id="sem-historial"></div>
+    </div>
+
     <div class="chart-card">
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
         <div class="chart-card-title" style="margin-bottom:0;">Gestión de hoy por analista <span class="muted" style="font-weight:600;">· clic en un analista para ver su lista</span></div>
@@ -2291,7 +2310,8 @@ const FINALIZADO_VALORES = ["finalizado"];
 // Meta y sincronización
 const META_DIARIA = 20;                       // mínimo de negocios gestionados por día, POR ANALISTA
 const BITACORA_SHEET_NAME = "Bitacora";        // pestaña donde el Apps Script guarda cada gestión con su fecha
-const BITACORA_DIAS_ATRAS = 35;                // cuántos días hacia atrás se leen de la bitácora
+const BITACORA_DIAS_ATRAS = 120;               // cuántos días hacia atrás se leen de la bitácora (≈17 semanas de historial)
+const BITACORA_REFRESCO_MS = 3 * 60 * 1000;    // la bitácora (más pesada) se relee cada 3 min; lo de HOY se actualiza siempre
 const META_AJUSTADA_AL_TOTAL = true;          // si un analista tiene menos de 20 negocios activos, su meta es gestionar todos los que tiene
 const TRAMITES_REFRESH_MS = 30 * 1000;        // lectura del Sheet cada 30 s (+ al volver a la pestaña)
 const FINALIZAR_CUENTA_COMO_GESTION = true;   // finalizar un negocio cuenta como gestión de ese día (mantener igual que en Codigo.gs)
@@ -2319,6 +2339,7 @@ let tDiarioVerTodos = false;
 let tBitacora = [];                 // [{fecha:"YYYY-MM-DD", nid, analista}] leído de la pestaña Bitacora
 let tBitacoraEstado = "pendiente";  // pendiente | activa | sin-bitacora | error
 let tBitacoraCargando = false;
+let tBitacoraUltima = 0;
 let tDiarioAnalista = "";   // analista seleccionado en el control diario ("" = todos)
 let tSearchTerm = "";
 let tCurrentModalNid = null;
@@ -2472,10 +2493,11 @@ function jsonpGenerico(url, cbName, timeoutMs){
 // Lee de la pestaña "Bitacora" las gestiones recientes (una fila por negocio y día).
 async function cargarBitacora(){
   if(tBitacoraCargando) return;
+  if(tBitacoraEstado === "activa" && Date.now() - tBitacoraUltima < BITACORA_REFRESCO_MS) return;
   tBitacoraCargando = true;
   try{
     const d = new Date(); d.setDate(d.getDate() - BITACORA_DIAS_ATRAS);
-    const tq = encodeURIComponent(`select A,B,C,D where A >= '${isoLocal(d)}'`);
+    const tq = encodeURIComponent(`select A,B,C where A >= '${isoLocal(d)}'`);
     const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(BITACORA_SHEET_NAME)}&headers=1&tq=${tq}&tqx=out:json;responseHandler:__gvizCallbackB`;
     const data = await jsonpGenerico(url, "__gvizCallbackB", 20000);
     if(!data || data.status === "error" || !data.table){
@@ -2488,6 +2510,7 @@ async function cargarBitacora(){
         tBitacora = rows.slice(1).map(r => ({ fecha: parseFecha((r[iF] || "").trim()), nid: (r[iN] || "").trim(), analista: iA === -1 ? "" : (r[iA] || "").trim() }))
                                  .filter(e => e.fecha && e.nid);
         tBitacoraEstado = "activa";
+        tBitacoraUltima = Date.now();
       }
     }
   } catch(err){
@@ -3018,6 +3041,152 @@ function renderCumplimientoDiario(filas, gest, hoy){
   el("dia-chart-hoy").innerHTML = svg;
 }
 
+// =========================================================================
+// GESTIÓN POR SEMANA (lunes a sábado; el domingo es descanso)
+//  · Siempre abre en la semana en curso (se mueve sola cada lunes); se pueden ver semanas anteriores.
+//  · Cuenta gestiones por negocio y día (bitácora + última fecha de gestión), igual que el control diario.
+//  · Meta semanal de un analista = su meta diaria × 6 días.
+//  · Una gestión registrada en domingo se cuenta en el sábado anterior.
+// =========================================================================
+const DIAS_SEMANA_LABORAL = 6;
+const SEM_DIA_ABREV = ["lun", "mar", "mié", "jue", "vie", "sáb"];
+let tSemInicio = "";          // "" = semana en curso
+let tSemAnalista = "todos";
+
+function semFecha(iso){ const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); }
+function semSumar(iso, n){ const d = semFecha(iso); d.setDate(d.getDate() + n); return isoLocal(d); }
+function semLunes(iso){ const d = semFecha(iso); const dow = d.getDay(); d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1)); return isoLocal(d); }
+function semFechaEfectiva(iso){ return semFecha(iso).getDay() === 0 ? semSumar(iso, -1) : iso; }
+function semEtiqueta(lunes){
+  const a = semFecha(lunes), b = semFecha(semSumar(lunes, DIAS_SEMANA_LABORAL - 1));
+  const mes = d => MESES[d.getMonth()].toLowerCase();
+  return `lun ${a.getDate()}${a.getMonth() === b.getMonth() ? "" : " " + mes(a)} – sáb ${b.getDate()} ${mes(b)} ${b.getFullYear()}`;
+}
+// Semanas que se pueden consultar: desde la semana en curso hacia atrás, dentro de la ventana de la bitácora.
+function semDisponibles(hoy){
+  const lunesHoy = semLunes(hoy), desde = semLunes(semSumar(hoy, -BITACORA_DIAS_ATRAS));
+  const out = [];
+  for(let w = lunesHoy; w >= desde; w = semSumar(w, -7)) out.push(w);
+  return out;
+}
+
+function renderGestionSemanal(filas, gest, hoy){
+  const el = id => document.getElementById(id);
+  const hoyLunes = semLunes(hoy);
+  const semanas = semDisponibles(hoy);
+  const sel = (tSemInicio && semanas.includes(tSemInicio)) ? tSemInicio : hoyLunes;
+  const esActual = sel === hoyLunes;
+  const dias = Array.from({ length: DIAS_SEMANA_LABORAL }, (_, i) => semSumar(sel, i));
+
+  // filtros
+  tdSetOptions(el("sem-select"), semanas.map(w => [w, semEtiqueta(w) + (w === hoyLunes ? " · semana en curso" : "")]), sel);
+  const nombres = [...new Set([...filas.map(f => f.a), ...gest.map(e => e.analista)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  tSemAnalista = tdSetOptions(el("sem-analista"), [["todos", "Todos los analistas"], ...nombres.map(n => [n, n])], tSemAnalista);
+  const iSel = semanas.indexOf(sel);
+  el("sem-prev").disabled = iSel >= semanas.length - 1;
+  el("sem-next").disabled = iSel <= 0;
+  el("sem-actual").disabled = esActual;
+  el("sem-etiqueta").textContent = "· " + semEtiqueta(sel) + (esActual ? " (semana en curso)" : "");
+
+  // conteos: gestiones por (día efectivo | analista) y negocios distintos por (semana | analista)
+  const cuenta = new Map(), nidsSem = new Map();
+  gest.forEach(e => {
+    const f = semFechaEfectiva(e.fecha);
+    const k = f + "|" + e.analista;
+    cuenta.set(k, (cuenta.get(k) || 0) + 1);
+    const kw = semLunes(f) + "|" + e.analista;
+    if(!nidsSem.has(kw)) nidsSem.set(kw, new Set());
+    nidsSem.get(kw).add(e.nid);
+  });
+  const metaDe = a => (filas.find(f => f.a === a) || { meta: 0 }).meta;
+  const totalSemana = (a, lunes) => Array.from({ length: DIAS_SEMANA_LABORAL }, (_, i) => cuenta.get(semSumar(lunes, i) + "|" + a) || 0).reduce((x, y) => x + y, 0);
+  const lista = tSemAnalista === "todos" ? nombres : [tSemAnalista];
+
+  const filasS = lista.filter(a => metaDe(a) > 0 || totalSemana(a, sel) > 0).map(a => {
+    const md = metaDe(a);
+    const cnt = dias.map(d => cuenta.get(d + "|" + a) || 0);
+    const total = cnt.reduce((x, y) => x + y, 0);
+    const metaSem = md * DIAS_SEMANA_LABORAL;
+    return { a, md, cnt, total, metaSem,
+             cumplidos: cnt.filter((c, i) => md > 0 && dias[i] <= hoy && c >= md).length,
+             ok: metaSem > 0 && total >= metaSem };
+  }).sort((x, y) => (y.total - x.total) || x.a.localeCompare(y.a));
+
+  const totG = filasS.reduce((t, f) => t + f.total, 0);
+  const metaTot = filasS.reduce((t, f) => t + f.metaSem, 0);
+  const nidsUnicos = new Set();
+  filasS.forEach(f => (nidsSem.get(sel + "|" + f.a) || new Set()).forEach(n => nidsUnicos.add(n)));
+  const evalu = filasS.filter(f => f.metaSem > 0), cumplieron = evalu.filter(f => f.ok).length;
+  const pct = metaTot ? Math.min(100, Math.round(totG / metaTot * 100)) : 0;
+  const diasTranscurridos = dias.filter(d => d <= hoy).length;
+
+  el("sem-kpis").innerHTML = `
+    <div class="metric-card"><div class="metric-label">Gestiones de la semana</div><div class="metric-value">${totG}</div><div class="metric-sub">${tSemAnalista !== "todos" ? tSemAnalista : "Equipo"} · ${semEtiqueta(sel)}</div></div>
+    <div class="metric-card"><div class="metric-label">Negocios distintos gestionados</div><div class="metric-value">${nidsUnicos.size}</div><div class="metric-sub">Un negocio gestionado varios días cuenta una sola vez</div></div>
+    <div class="metric-card"><div class="metric-label">Avance de la meta semanal</div><div class="metric-value">${pct}%</div><div class="metric-sub">${totG} de ${metaTot} requeridas · faltan ${Math.max(0, metaTot - totG)}</div></div>
+    <div class="metric-card"><div class="metric-label">${tSemAnalista === "todos" ? "Analistas que cumplieron la meta semanal" : "Días que cumplió la meta"}</div>
+      <div class="metric-value">${tSemAnalista === "todos" ? cumplieron + " / " + evalu.length : (filasS[0] ? filasS[0].cumplidos : 0) + " / " + diasTranscurridos}</div>
+      <div class="metric-sub">${tSemAnalista === "todos" ? (esActual ? "La semana sigue en curso" : "Semana cerrada") : "Meta diaria: " + (filasS[0] ? filasS[0].md : 0) + " gestiones"}</div></div>`;
+
+  // tabla analista × día
+  const verde = { bg:"#DCFCE7", fg:"#166534" }, rojo = { bg:"#FEE2E2", fg:"#991B1B" }, morado = { bg:"#EDE9FE", fg:"#5B21B6" };
+  const celda = (c, i, md) => {
+    const d = dias[i];
+    if(d > hoy) return `<td style="text-align:center;" class="muted">·</td>`;
+    if(md === 0) return `<td style="text-align:center;" class="muted">${c}</td>`;
+    const st = c >= md ? verde : (d === hoy ? morado : rojo);
+    return `<td style="text-align:center;"><span class="badge" style="display:inline-block; min-width:34px; text-align:center; background:${st.bg}; color:${st.fg};" title="${fmtFecha(d)}: ${c} de ${md}">${c}</span></td>`;
+  };
+  const estado = f => !f.metaSem ? "—" : f.ok ? `<span class="badge b-green">✓ Cumplió</span>` : (esActual ? `<span class="badge b-amber">En curso</span>` : `<span class="badge b-red">No cumplió</span>`);
+  const barra = (t, m) => { const p = m ? Math.min(100, Math.round(t / m * 100)) : 0; return `<span class="dia-mini"><div style="width:${p}%"></div></span><span class="muted">${p}%</span>`; };
+  const cab = dias.map((d, i) => `<th style="text-align:center;${d === hoy ? " color:#4C1D95;" : ""}">${d === hoy ? "hoy" : SEM_DIA_ABREV[i]}<br><span style="font-weight:500; color:#9CA3AF;">${semFecha(d).getDate()}/${String(semFecha(d).getMonth() + 1).padStart(2, "0")}</span></th>`).join("");
+  el("sem-tabla").innerHTML = filasS.length ? `
+    <table>
+      <thead><tr><th>Analista</th>${cab}<th style="text-align:center;">Total semana</th><th style="text-align:center;">Meta semana</th><th>Avance</th><th style="text-align:center;">Días cumplidos</th><th>Estado</th></tr></thead>
+      <tbody>${filasS.map(f => `<tr><td class="val">${f.a}</td>${f.cnt.map((c, i) => celda(c, i, f.md)).join("")}
+        <td style="text-align:center; font-weight:800;">${f.total}</td><td style="text-align:center;">${f.metaSem || "—"}</td><td>${barra(f.total, f.metaSem)}</td>
+        <td style="text-align:center;">${f.md ? f.cumplidos + "/" + diasTranscurridos : "—"}</td><td>${estado(f)}</td></tr>`).join("")}
+      ${tSemAnalista !== "todos" ? "" : `<tr style="font-weight:800; background:#FAFAFB;"><td>Total equipo</td>${dias.map((d, i) => `<td style="text-align:center;">${d > hoy ? "·" : filasS.reduce((t, f) => t + f.cnt[i], 0)}</td>`).join("")}
+        <td style="text-align:center;">${totG}</td><td style="text-align:center;">${metaTot}</td><td>${barra(totG, metaTot)}</td><td></td><td>${cumplieron}/${evalu.length} cumplieron</td></tr>`}
+      </tbody>
+    </table>` : `<div class="no-results">Sin gestiones ni analistas con carga en esta semana.</div>`;
+  el("sem-nota").textContent = "Semana de lunes a sábado; el domingo es descanso (si hay una gestión registrada en domingo, se cuenta en el sábado). Meta semanal = meta diaria × " + DIAS_SEMANA_LABORAL + " días. Cada celda cuenta negocios gestionados ese día." +
+    (tBitacoraEstado === "activa" ? " Las semanas anteriores usan el historial de la pestaña Bitacora; antes de activarla pueden mostrar menos gestiones de las reales."
+                                  : " ⚠ La bitácora no está activa: las semanas anteriores solo tienen la última fecha de gestión de cada negocio y pueden verse muy bajas.");
+
+  // historial de semanas (la semana en curso primero)
+  const filasH = semanas.map(w => {
+    let tot = 0, meta = 0;
+    lista.forEach(a => { const md = metaDe(a), t = totalSemana(a, w); if(md > 0 || t > 0){ tot += t; meta += md * DIAS_SEMANA_LABORAL; } });
+    return { w, tot, meta };
+  }).filter(h => h.meta > 0 || h.tot > 0);
+  // No se listan las semanas vacías anteriores a la primera con gestiones (la semana en curso siempre aparece).
+  let ultimaConDatos = 0;
+  filasH.forEach((h, i) => { if(h.tot > 0) ultimaConDatos = i; });
+  filasH.length = Math.min(filasH.length, ultimaConDatos + 1);
+  el("sem-historial").innerHTML = filasH.length ? filasH.map(h => {
+    const p = h.meta ? Math.min(100, Math.round(h.tot / h.meta * 100)) : 0;
+    const color = h.meta > 0 && h.tot >= h.meta ? "#16A34A" : (h.w === hoyLunes ? "#8B5CF6" : "#EF4444");
+    return `<div class="month-row clickable-row sem-hist" data-semana="${h.w}" style="cursor:pointer; padding:3px 6px;${h.w === sel ? " background:#F3EEFD; border-radius:8px;" : ""}">
+      <div class="month-label" style="width:230px;${h.w === sel ? " color:var(--habi-purple-dark);" : ""}">${semEtiqueta(h.w)}${h.w === hoyLunes ? " · en curso" : ""}</div>
+      <div class="month-track"><div class="month-fill" style="width:${p}%; background:${color};"></div></div>
+      <div class="month-value" style="width:150px;">${h.tot} / ${h.meta} · ${p}%</div></div>`;
+  }).join("") : `<div class="muted" style="font-size:12.5px;">Sin datos de semanas anteriores.</div>`;
+  el("sem-historial").querySelectorAll(".sem-hist").forEach(row => {
+    row.onclick = () => { tSemInicio = row.dataset.semana === hoyLunes ? "" : row.dataset.semana; renderControlDiario(); };
+  });
+}
+document.getElementById("sem-select").addEventListener("change", e => { tSemInicio = e.target.value === semLunes(hoyLocalISO()) ? "" : e.target.value; renderControlDiario(); });
+document.getElementById("sem-analista").addEventListener("change", e => { tSemAnalista = e.target.value; renderControlDiario(); });
+document.getElementById("sem-actual").addEventListener("click", () => { tSemInicio = ""; renderControlDiario(); });
+function semMover(delta){   // delta +1 = semana más antigua, -1 = más reciente
+  const lista = semDisponibles(hoyLocalISO()), actual = lista.indexOf(tSemInicio || lista[0]);
+  const nueva = lista[actual + delta];
+  if(nueva){ tSemInicio = nueva === lista[0] ? "" : nueva; renderControlDiario(); }
+}
+document.getElementById("sem-prev").addEventListener("click", () => semMover(1));
+document.getElementById("sem-next").addEventListener("click", () => semMover(-1));
+
 // Control diario: SOLO negocios activos (los FINALIZADOS no suman al conteo ni a la meta).
 // "Gestionado hoy" = FECHA DE GESTION igual a la fecha de hoy. La meta es POR ANALISTA.
 function renderControlDiario(){
@@ -3041,6 +3210,7 @@ function renderControlDiario(){
   const pcDe = (g, m) => m ? Math.min(100, Math.round(g / m * 100)) : 0;
 
   renderCumplimientoDiario(filas, gest, hoy);
+  renderGestionSemanal(filas, gest, hoy);
 
   // ---- Resumen
   const todosOk = evaluados.length > 0 && cumplieron === evaluados.length;
@@ -3727,7 +3897,7 @@ loadTramitesData();
 setInterval(() => { if(!document.hidden) loadTramitesDataSoft(); }, TRAMITES_REFRESH_MS);
 document.addEventListener("visibilitychange", () => { if(!document.hidden) loadTramitesDataSoft(); });
 window.addEventListener("focus", () => loadTramitesDataSoft());
-document.getElementById("t-refresh-btn").addEventListener("click", () => loadTramitesData());
+document.getElementById("t-refresh-btn").addEventListener("click", () => { tBitacoraUltima = 0; loadTramitesData(); });
 
 // =========================================================================
 // TABLERO 3 — ESTUDIO DE TÍTULOS VERANO / INMOBILIARIA (Google Sheet aparte)
