@@ -394,6 +394,8 @@
   .t-finalizar-btn:hover{ background:#3B1578; }
   .t-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); background:#1F2937; color:#fff; padding:11px 18px; border-radius:10px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:90; max-width:90vw; text-align:center; }
   .t-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  #tab-tramites-desemb .chart-label{ width:300px; }
+  #tab-tramites-desemb .chart-label .badge{ white-space:normal; }
   .b-teal{ background:#CCFBF1; color:#0F766E; }
   .b-magenta{ background:#FAE8FF; color:#86198F; }
 
@@ -447,6 +449,7 @@
     <button class="tab-btn" data-tab="metricas">📈 Métricas</button>
     <button class="tab-btn" data-tab="tramites">🏗️ Trámites</button>
     <button class="tab-btn" data-tab="tramites-metricas">📈 Métricas Trámites</button>
+    <button class="tab-btn" data-tab="tramites-desemb">💰 Desembolsos Trámites</button>
     <button class="tab-btn" data-tab="verano">🏛️ Estudio de Títulos Verano</button>
   </div>
 
@@ -721,6 +724,58 @@
     </div>
   </div>
 
+  <div class="tab-panel" id="tab-tramites-desemb">
+    <div class="eyebrow">Desembolsos · Trámites Notariales</div>
+
+    <div class="metrics-toolbar">
+      <label for="td-analista">Analista:</label>
+      <select class="analista-select" id="td-analista"></select>
+      <label for="td-year">Año:</label>
+      <select class="analista-select" id="td-year"></select>
+      <label for="td-month">Mes (según fecha de gestión):</label>
+      <select class="analista-select" id="td-month"></select>
+      <button class="refresh-btn" id="td-clear" type="button">✕ Limpiar filtros</button>
+      <span class="metrics-count" id="td-count"></span>
+    </div>
+    <div class="footer-note" style="text-align:left; margin:-8px 0 16px;">Analista y año filtran todo lo de esta pestaña. El mes filtra solo la distribución por etapa. Los negocios finalizados sí cuentan en lo desembolsado.</div>
+
+    <div class="metrics" id="td-metrics"></div>
+
+    <div class="section-title">Resumen por analista <span class="muted" style="font-weight:600;">· clic en un analista para filtrar</span></div>
+    <div class="chart-card">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Analista</th><th>Desembolsados</th><th>Valor desembolsado</th><th>Por desembolsar</th><th>Valor pendiente (est.)</th><th>Valor total</th></tr></thead>
+          <tbody id="td-analistas"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-title">Desembolsos por mes</div>
+    <div class="monthly-grid">
+      <div class="month-card">
+        <div class="month-card-title">💜 Desembolsado (real)</div>
+        <div class="month-card-sub">Según fecha de desembolso registrada</div>
+        <div id="td-mes-real"></div>
+      </div>
+      <div class="month-card">
+        <div class="month-card-title">🕒 Pendiente (estimado)</div>
+        <div class="month-card-sub">Según mes de fecha de gestión — sujeto a cambios. No incluye finalizados ni ya desembolsados</div>
+        <div id="td-mes-pend"></div>
+      </div>
+    </div>
+
+    <div class="section-title">Distribución por etapa</div>
+    <div class="chart-card">
+      <div class="chart-card-title">Cantidad de casos por etapa (columna AV)</div>
+      <div id="td-etapa-count"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-card-title">Valor total por etapa</div>
+      <div id="td-etapa-valor"></div>
+    </div>
+  </div>
+
   <div class="tab-panel" id="tab-verano">
     <div class="eyebrow">Estudio de Títulos Verano / Inmobiliaria</div>
 
@@ -983,6 +1038,24 @@
           </tr>
         </thead>
         <tbody id="month-detail-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="td-month-overlay">
+  <div class="modal" style="max-width:760px;">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title" id="td-month-title">Detalle del mes</div>
+        <div class="modal-sub" id="td-month-sub"></div>
+      </div>
+      <button class="modal-close" id="td-month-close">✕</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>NID</th><th>Proyecto</th><th>Analista</th><th>Banco</th><th>Valor desembolso</th><th>Mixto</th><th>Fecha</th></tr></thead>
+        <tbody id="td-month-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -3030,6 +3103,170 @@ document.getElementById("dia-tab-gestionados").addEventListener("click", ()=>{ t
 document.getElementById("dia-analista-limpiar").addEventListener("click", ()=>{ tDiarioAnalista = ""; tDiarioVerTodos = false; renderControlDiario(); });
 document.getElementById("dia-ver-todos").addEventListener("click", ()=>{ tDiarioVerTodos = !tDiarioVerTodos; renderControlDiario(); });
 
+// =========================================================================
+// DESEMBOLSOS TRÁMITES — las mismas vistas de "Métricas" y "Desembolsos por mes" de Registro, por analista.
+//  · Desembolsado (real)    = negocios con FECHA DESEMBOLSO (col. AQ); se agrupa por el mes de esa fecha. Incluye finalizados.
+//  · Pendiente (estimado)   = negocios sin desembolso y NO finalizados; se agrupa por el mes de la fecha de gestión.
+//  · Distribución por etapa = columna AV ("ETAPAS"), con cantidad de casos y suma del valor del desembolso.
+// =========================================================================
+const ETAPA_AV_BADGE = {
+  "PTE BOLETA":"b-amber", "PTE CTL":"b-amber", "RADICADO DESEMBOLSO":"b-blue", "DESEMBOLSADO":"b-green",
+  "PTE LIQUIDACION REGISTRO":"b-purple", "PTE DE RADICAR":"b-brown", "EN FIRMAS DE ENTIDAD":"b-navy",
+  "PTE AVANCE NOTARIA":"b-purple", "FINALIZADO":"b-final", "CANCELACION DE HIPOTECA DESEMBOLSO MIXTO":"b-gray",
+  "PTE ENVIO PARA DESEMBOLSO":"b-gray", "OK BOLETA":"b-brown", "CIERRE NOTARIAL":"b-green"
+};
+const ETAPA_AV_COLOR = {
+  "PTE BOLETA":"var(--amber)", "PTE CTL":"var(--amber)", "RADICADO DESEMBOLSO":"var(--blue)", "DESEMBOLSADO":"var(--green)",
+  "PTE LIQUIDACION REGISTRO":"var(--habi-purple)", "PTE DE RADICAR":"#7C4A2D", "EN FIRMAS DE ENTIDAD":"#1E3A8A",
+  "PTE AVANCE NOTARIA":"var(--habi-purple)", "FINALIZADO":"var(--habi-purple-dark)", "CANCELACION DE HIPOTECA DESEMBOLSO MIXTO":"#9CA3AF",
+  "PTE ENVIO PARA DESEMBOLSO":"#9CA3AF", "OK BOLETA":"#7C4A2D", "CIERRE NOTARIAL":"var(--green)"
+};
+let tdAnalista = "todos", tdYear = "todos", tdMonth = "todos";
+
+// Reconstruye las opciones de un <select> solo si cambiaron (así el refresco automático no cierra un menú abierto).
+function tdSetOptions(sel, pares, actual){
+  const sig = JSON.stringify(pares);
+  if(sel.dataset.sig !== sig){
+    sel.innerHTML = pares.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+    sel.dataset.sig = sig;
+  }
+  const valido = pares.some(([v]) => v === actual);
+  sel.value = valido ? actual : pares[0][0];
+  return sel.value;
+}
+function tdAnalistasConNegocios(){
+  return [...new Set(tramitesEnriched.map(r => r.analista))].sort((a, b) => a.localeCompare(b));
+}
+function renderTdFilters(){
+  const el = id => document.getElementById(id);
+  tdAnalista = tdSetOptions(el("td-analista"), [["todos", "Todos los analistas"], ...tdAnalistasConNegocios().map(n => [n, n])], tdAnalista);
+  const years = [...new Set(tramitesEnriched.flatMap(r => [r.fechaGestion, r.fechaDesembolso]).filter(Boolean).map(f => f.slice(0, 4)))].sort();
+  tdYear = tdSetOptions(el("td-year"), [["todos", "Todos los años"], ...years.map(y => [y, y])], tdYear);
+  const months = [...new Set(tramitesEnriched
+    .filter(r => r.fechaGestion && (tdYear === "todos" || r.fechaGestion.slice(0, 4) === tdYear))
+    .map(r => r.fechaGestion.slice(0, 7)))].sort();
+  tdMonth = tdSetOptions(el("td-month"), [["todos", "Todos los meses"], ...months.map(m => [m, monthLabel(m)])], tdMonth);
+}
+["td-analista", "td-year", "td-month"].forEach(id => {
+  document.getElementById(id).addEventListener("change", e => {
+    if(id === "td-analista") tdAnalista = e.target.value;
+    else if(id === "td-year") tdYear = e.target.value;
+    else tdMonth = e.target.value;
+    renderTramitesDesembolsos();
+  });
+});
+document.getElementById("td-clear").addEventListener("click", () => {
+  tdAnalista = "todos"; tdYear = "todos"; tdMonth = "todos";
+  renderTramitesDesembolsos();
+});
+
+function tdPanelMeses(containerId, grouped, pendiente, dateField){
+  const el = document.getElementById(containerId);
+  if(grouped.length === 0){
+    el.innerHTML = `<div class="muted" style="font-size:12.5px;">Sin datos con fecha registrada.</div>`;
+    return;
+  }
+  const max = Math.max(...grouped.map(([, v]) => v.total), 1);
+  el.innerHTML = grouped.map(([key, v]) => `
+    <div class="month-row clickable-row" style="cursor:pointer;">
+      <div class="month-label">${monthLabel(key)}</div>
+      <div class="month-track"><div class="month-fill${pendiente ? " pending" : ""}" style="width:${Math.round((v.total / max) * 100)}%"></div></div>
+      <div class="month-value">${fmtValor(v.total)}</div>
+    </div>`).join("");
+  el.querySelectorAll(".month-row").forEach((row, i) => { row.onclick = () => openTdMonthDetail(grouped[i][0], grouped[i][1].items, dateField); });
+}
+
+function openTdMonthDetail(monthKey, items, dateField){
+  document.getElementById("td-month-title").textContent = monthLabel(monthKey) + (dateField === "fechaDesembolso" ? " · desembolsado" : " · pendiente (estimado)") + (tdAnalista !== "todos" ? " · " + tdAnalista : "");
+  document.getElementById("td-month-sub").textContent = `${items.length} negocio(s) · ${fmtValor(items.reduce((a, it) => a + (it.valorDesembolso || 0), 0))}`;
+  const tb = document.getElementById("td-month-tbody");
+  tb.innerHTML = items.map(it => `
+    <tr class="td-month-row" data-nid="${it.nid}" style="cursor:pointer;">
+      <td class="nid">${it.nid}</td>
+      <td class="val">${it.proyecto}</td>
+      <td class="muted">${it.analista}</td>
+      <td class="muted">${it.banco}</td>
+      <td class="val">${fmtValor(it.valorDesembolso)}</td>
+      <td class="muted">${it.mixto}</td>
+      <td class="muted">${fmtFecha(it[dateField])}</td>
+    </tr>`).join("");
+  tb.querySelectorAll(".td-month-row").forEach(tr => {
+    tr.onclick = () => { document.getElementById("td-month-overlay").classList.remove("show"); openTramitesModal(tr.dataset.nid); };
+  });
+  document.getElementById("td-month-overlay").classList.add("show");
+}
+document.getElementById("td-month-close").addEventListener("click", () => document.getElementById("td-month-overlay").classList.remove("show"));
+document.getElementById("td-month-overlay").addEventListener("click", e => { if(e.target.id === "td-month-overlay") e.currentTarget.classList.remove("show"); });
+
+function renderTramitesDesembolsos(){
+  renderTdFilters();
+  const el = id => document.getElementById(id);
+  const yOk = f => tdYear === "todos" || (!!f && f.slice(0, 4) === tdYear);
+  const esReal = r => !!r.fechaDesembolso && yOk(r.fechaDesembolso);
+  const esPend = r => !r.finalizado && !r.fechaDesembolso && r.etapaAV !== "DESEMBOLSADO" && (tdYear === "todos" || yOk(r.fechaGestion));
+  const suma = arr => arr.reduce((a, r) => a + (r.valorDesembolso || 0), 0);
+  const base = tdAnalista === "todos" ? tramitesEnriched : tramitesEnriched.filter(r => r.analista === tdAnalista);
+  const real = base.filter(esReal), pend = base.filter(esPend);
+  const quien = tdAnalista !== "todos" ? " · " + tdAnalista : "";
+
+  // ---- Tarjetas resumen
+  const sinFecha = pend.filter(r => !r.fechaGestion).length;
+  el("td-metrics").innerHTML = `
+    <div class="metric-card"><div class="metric-label">Valor desembolsado (real)</div><div class="metric-value">${fmtValor(suma(real))}</div><div class="metric-sub">${real.length} negocio(s) con fecha de desembolso${quien}</div></div>
+    <div class="metric-card"><div class="metric-label">Valor pendiente por desembolsar</div><div class="metric-value">${fmtValor(suma(pend))}</div><div class="metric-sub">${pend.length} negocio(s) en curso${sinFecha ? " · " + sinFecha + " sin fecha de gestión" : ""}</div></div>
+    <div class="metric-card"><div class="metric-label">Total (desembolsado + pendiente)</div><div class="metric-value">${fmtValor(suma(real) + suma(pend))}</div><div class="metric-sub">Referencia del valor en movimiento</div></div>`;
+
+  // ---- Resumen por analista (siempre lista a todos; respeta el año)
+  const filas = tdAnalistasConNegocios().map(a => {
+    const rr = tramitesEnriched.filter(r => r.analista === a && esReal(r));
+    const pp = tramitesEnriched.filter(r => r.analista === a && esPend(r));
+    return { a, nr: rr.length, vr: suma(rr), np: pp.length, vp: suma(pp) };
+  }).sort((x, y) => (y.vr - x.vr) || x.a.localeCompare(y.a));
+  const tot = filas.reduce((t, f) => ({ nr: t.nr + f.nr, vr: t.vr + f.vr, np: t.np + f.np, vp: t.vp + f.vp }), { nr: 0, vr: 0, np: 0, vp: 0 });
+  const maxVr = Math.max(...filas.map(f => f.vr), 1);
+  el("td-analistas").innerHTML = filas.map(f => `
+    <tr class="dia-analista-row${tdAnalista === f.a ? " sel" : ""}" data-analista="${f.a}" style="cursor:pointer;">
+      <td class="val">${f.a}</td>
+      <td>${f.nr}</td>
+      <td><span class="dia-mini"><div style="width:${Math.round(f.vr / maxVr * 100)}%"></div></span><b>${fmtValor(f.vr)}</b></td>
+      <td>${f.np}</td>
+      <td>${fmtValor(f.vp)}</td>
+      <td class="muted">${fmtValor(f.vr + f.vp)}</td>
+    </tr>`).join("") + `
+    <tr style="font-weight:800; background:#FAFAFB;">
+      <td>Total equipo</td><td>${tot.nr}</td><td>${fmtValor(tot.vr)}</td><td>${tot.np}</td><td>${fmtValor(tot.vp)}</td><td>${fmtValor(tot.vr + tot.vp)}</td>
+    </tr>`;
+  el("td-analistas").querySelectorAll(".dia-analista-row").forEach(tr => {
+    tr.onclick = () => { tdAnalista = tdAnalista === tr.dataset.analista ? "todos" : tr.dataset.analista; renderTramitesDesembolsos(); };
+  });
+
+  // ---- Desembolsos por mes
+  tdPanelMeses("td-mes-real", groupByMonth(real.map(r => ({ ...r, valor: r.valorDesembolso })), "fechaDesembolso"), false, "fechaDesembolso");
+  tdPanelMeses("td-mes-pend", groupByMonth(pend.filter(r => r.fechaGestion).map(r => ({ ...r, valor: r.valorDesembolso })), "fechaGestion"), true, "fechaGestion");
+
+  // ---- Distribución por etapa (año y mes según fecha de gestión)
+  const rowsD = base.filter(r =>
+    (tdYear === "todos" || yOk(r.fechaGestion)) &&
+    (tdMonth === "todos" || (r.fechaGestion || "").slice(0, 7) === tdMonth));
+  el("td-count").textContent = `${rowsD.length} caso${rowsD.length === 1 ? "" : "s"} en la distribución${quien}`;
+  const counts = {}, valores = {};
+  rowsD.forEach(r => {
+    const k = r.etapaAV || "SIN ETAPA";
+    counts[k] = (counts[k] || 0) + 1;
+    valores[k] = (valores[k] || 0) + (r.valorDesembolso || 0);
+  });
+  const claves = [...ETAPA_AV_OPCIONES, ...Object.keys(counts).filter(k => !ETAPA_AV_OPCIONES.includes(k)).sort()];
+  const maxC = Math.max(...claves.map(k => counts[k] || 0), 1), maxV = Math.max(...claves.map(k => valores[k] || 0), 1);
+  const fila = (k, v, max, texto) => `
+    <div class="chart-row">
+      <div class="chart-label"><span class="badge ${ETAPA_AV_BADGE[k] || "b-gray"}">${k}</span></div>
+      <div class="chart-track"><div class="chart-fill" style="width:${Math.round(((v || 0) / max) * 100)}%; background:${ETAPA_AV_COLOR[k] || "#9CA3AF"}"></div></div>
+      <div class="chart-value">${texto}</div>
+    </div>`;
+  el("td-etapa-count").innerHTML = claves.map(k => fila(k, counts[k], maxC, counts[k] || 0)).join("");
+  el("td-etapa-valor").innerHTML = claves.map(k => fila(k, valores[k], maxV, fmtValor(valores[k]))).join("");
+}
+
 function renderTramitesAll(){
   renderTramitesFilters();
   const overviewRows = tFilteredRowsBase(false); // sin filtro de semáforo, para el panorama general
@@ -3041,6 +3278,7 @@ function renderTramitesAll(){
   renderTramitesAnalistaMetrics(overviewRows, "t2-analista-metrics");
   renderEtapaLegalPorAnalista(overviewRows);
   renderTramitesTable(rows);
+  renderTramitesDesembolsos();
 }
 
 function openTramitesModal(nid){
