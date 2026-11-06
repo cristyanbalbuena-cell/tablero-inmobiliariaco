@@ -737,11 +737,11 @@
       <button class="refresh-btn" id="td-clear" type="button">✕ Limpiar filtros</button>
       <span class="metrics-count" id="td-count"></span>
     </div>
-    <div class="footer-note" style="text-align:left; margin:-8px 0 16px;">Analista y año filtran todo lo de esta pestaña. El mes filtra solo la distribución por etapa. Los negocios finalizados sí cuentan en lo desembolsado.</div>
+    <div class="footer-note" style="text-align:left; margin:-8px 0 16px;">Al elegir un analista, toda esta pestaña muestra únicamente sus datos. Analista y año filtran todo lo de esta pestaña. El mes filtra solo la distribución por etapa. Los negocios finalizados sí cuentan en lo desembolsado.</div>
 
     <div class="metrics" id="td-metrics"></div>
 
-    <div class="section-title">Resumen por analista <span class="muted" style="font-weight:600;">· clic en un analista para filtrar</span></div>
+    <div class="section-title">Resumen por analista <span class="muted" style="font-weight:600;">· clic en un analista para filtrar (otro clic sobre él quita el filtro)</span></div>
     <div class="chart-card">
       <div class="table-scroll">
         <table>
@@ -3140,9 +3140,10 @@ function tdAnalistasConNegocios(){
 function renderTdFilters(){
   const el = id => document.getElementById(id);
   tdAnalista = tdSetOptions(el("td-analista"), [["todos", "Todos los analistas"], ...tdAnalistasConNegocios().map(n => [n, n])], tdAnalista);
-  const years = [...new Set(tramitesEnriched.flatMap(r => [r.fechaGestion, r.fechaDesembolso]).filter(Boolean).map(f => f.slice(0, 4)))].sort();
+  const delAnalista = tdAnalista === "todos" ? tramitesEnriched : tramitesEnriched.filter(r => r.analista === tdAnalista);
+  const years = [...new Set(delAnalista.flatMap(r => [r.fechaGestion, r.fechaDesembolso]).filter(Boolean).map(f => f.slice(0, 4)))].sort();
   tdYear = tdSetOptions(el("td-year"), [["todos", "Todos los años"], ...years.map(y => [y, y])], tdYear);
-  const months = [...new Set(tramitesEnriched
+  const months = [...new Set(delAnalista
     .filter(r => r.fechaGestion && (tdYear === "todos" || r.fechaGestion.slice(0, 4) === tdYear))
     .map(r => r.fechaGestion.slice(0, 7)))].sort();
   tdMonth = tdSetOptions(el("td-month"), [["todos", "Todos los meses"], ...months.map(m => [m, monthLabel(m)])], tdMonth);
@@ -3217,7 +3218,8 @@ function renderTramitesDesembolsos(){
     <div class="metric-card"><div class="metric-label">Total (desembolsado + pendiente)</div><div class="metric-value">${fmtValor(suma(real) + suma(pend))}</div><div class="metric-sub">Referencia del valor en movimiento</div></div>`;
 
   // ---- Resumen por analista (siempre lista a todos; respeta el año)
-  const filas = tdAnalistasConNegocios().map(a => {
+  const nombresTabla = tdAnalista === "todos" ? tdAnalistasConNegocios() : [tdAnalista];
+  const filas = nombresTabla.map(a => {
     const rr = tramitesEnriched.filter(r => r.analista === a && esReal(r));
     const pp = tramitesEnriched.filter(r => r.analista === a && esPend(r));
     return { a, nr: rr.length, vr: suma(rr), np: pp.length, vp: suma(pp) };
@@ -3232,10 +3234,10 @@ function renderTramitesDesembolsos(){
       <td>${f.np}</td>
       <td>${fmtValor(f.vp)}</td>
       <td class="muted">${fmtValor(f.vr + f.vp)}</td>
-    </tr>`).join("") + `
+    </tr>`).join("") + (tdAnalista !== "todos" ? "" : `
     <tr style="font-weight:800; background:#FAFAFB;">
       <td>Total equipo</td><td>${tot.nr}</td><td>${fmtValor(tot.vr)}</td><td>${tot.np}</td><td>${fmtValor(tot.vp)}</td><td>${fmtValor(tot.vr + tot.vp)}</td>
-    </tr>`;
+    </tr>`);
   el("td-analistas").querySelectorAll(".dia-analista-row").forEach(tr => {
     tr.onclick = () => { tdAnalista = tdAnalista === tr.dataset.analista ? "todos" : tr.dataset.analista; renderTramitesDesembolsos(); };
   });
