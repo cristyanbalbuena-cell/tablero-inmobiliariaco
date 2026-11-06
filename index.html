@@ -394,6 +394,9 @@
   .t-finalizar-btn:hover{ background:#3B1578; }
   .t-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(20px); background:#1F2937; color:#fff; padding:11px 18px; border-radius:10px; font-size:13px; font-weight:600; opacity:0; pointer-events:none; transition:all .25s; z-index:90; max-width:90vw; text-align:center; }
   .t-toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  #tab-tramites-desemb .month-row.dim{ opacity:.38; }
+  .td-celda:hover{ background:#F9F7FF; }
+  .td-celda.sel, .td-mes-th.sel{ background:#F3EEFD; color:var(--habi-purple-dark); }
   #tab-tramites-desemb .chart-label{ width:300px; }
   #tab-tramites-desemb .chart-label .badge{ white-space:normal; }
   .b-teal{ background:#CCFBF1; color:#0F766E; }
@@ -730,18 +733,22 @@
     <div class="metrics-toolbar">
       <label for="td-analista">Analista:</label>
       <select class="analista-select" id="td-analista"></select>
+      <label for="td-ref">Fecha de desembolso según:</label>
+      <select class="analista-select" id="td-ref" style="min-width:320px;"></select>
       <label for="td-year">Año:</label>
       <select class="analista-select" id="td-year"></select>
+      <label for="td-mes-des">Mes del desembolso:</label>
+      <select class="analista-select" id="td-mes-des"></select>
       <label for="td-month">Mes (según fecha de gestión):</label>
       <select class="analista-select" id="td-month"></select>
       <button class="refresh-btn" id="td-clear" type="button">✕ Limpiar filtros</button>
       <span class="metrics-count" id="td-count"></span>
     </div>
-    <div class="footer-note" style="text-align:left; margin:-8px 0 16px;">Al elegir un analista, toda esta pestaña muestra únicamente sus datos. Analista y año filtran todo lo de esta pestaña. El mes filtra solo la distribución por etapa. Los negocios finalizados sí cuentan en lo desembolsado.</div>
+    <div class="footer-note" style="text-align:left; margin:-8px 0 16px;">Al elegir un analista, toda esta pestaña muestra únicamente sus datos. Analista y año filtran todo lo de esta pestaña. «Mes del desembolso» filtra lo desembolsado (tarjeta, tabla por analista) y resalta ese mes en las barras; lo pendiente no depende de él. «Mes (según fecha de gestión)» filtra solo la distribución por etapa. Los negocios finalizados sí cuentan en lo desembolsado. El mes de «Desembolsado (real)» sale solo de la fecha de la columna elegida, sin importar la etapa ni el estado del negocio; las celdas vacías o con «-» no cuentan.</div>
 
     <div class="metrics" id="td-metrics"></div>
 
-    <div class="section-title">Resumen por analista <span class="muted" style="font-weight:600;">· clic en un analista para filtrar (otro clic sobre él quita el filtro)</span></div>
+    <div class="section-title">Resumen por analista <span class="muted" style="font-weight:600;">· clic en un analista para filtrar (otro clic sobre él quita el filtro)</span><span class="muted" id="td-resumen-nota" style="font-weight:700; color:var(--habi-purple);"></span></div>
     <div class="chart-card">
       <div class="table-scroll">
         <table>
@@ -751,12 +758,18 @@
       </div>
     </div>
 
+    <div class="section-title">Desembolsado por analista y por mes <span class="muted" style="font-weight:600;">· clic en una celda o en un mes para filtrar</span></div>
+    <div class="chart-card">
+      <div class="table-scroll" id="td-matriz"></div>
+    </div>
+
     <div class="section-title">Desembolsos por mes</div>
     <div class="monthly-grid">
       <div class="month-card">
         <div class="month-card-title">💜 Desembolsado (real)</div>
-        <div class="month-card-sub">Según fecha de desembolso registrada</div>
+        <div class="month-card-sub" id="td-ref-sub">Según fecha de desembolso registrada</div>
         <div id="td-mes-real"></div>
+        <div class="footer-note" id="td-nota-mes" style="text-align:left; margin-top:12px; display:none;"></div>
       </div>
       <div class="month-card">
         <div class="month-card-title">🕒 Pendiente (estimado)</div>
@@ -764,6 +777,11 @@
         <div id="td-mes-pend"></div>
       </div>
     </div>
+
+    <details class="chart-card" id="td-comp-box">
+      <summary style="cursor:pointer; font-weight:700; font-size:13px;">¿No cuadra un mes? Compara las fechas por mes: columna AP vs columna AQ</summary>
+      <div id="td-comp" style="margin-top:12px;"></div>
+    </details>
 
     <div class="section-title">Distribución por etapa</div>
     <div class="chart-card">
@@ -1203,6 +1221,27 @@ function parseFecha(str){
     if(+mo <= 12 && +d <= 31) return `${y}-${mo.padStart(2,"0")}-${d.padStart(2,"0")}`;
   }
   return "";
+}
+const MESES_ES = {ene:1,enero:1,feb:2,febrero:2,mar:3,marzo:3,abr:4,abril:4,may:5,mayo:5,jun:6,junio:6,jul:7,julio:7,
+  ago:8,agosto:8,sep:9,sept:9,set:9,septiembre:9,setiembre:9,oct:10,octubre:10,nov:11,noviembre:11,dic:12,diciembre:12};
+// Devuelve { iso:"YYYY-MM-DD", soloMes:boolean }. Si la celda trae solo mes y año, iso es el día 1 de ese mes.
+// Cualquier otra cosa (vacío, "-", texto) se ignora: solo cuentan las fechas.
+function parseMesReferencia(raw){
+  const s0 = String(raw || "").trim();
+  if(!s0) return { iso:"", soloMes:false };
+  const f = parseFecha(s0);
+  if(f) return { iso:f, soloMes:false };
+  const t = s0.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  let m = t.match(/^(\d{1,2})[\/\-.](\d{4})$/);
+  if(m && +m[1] >= 1 && +m[1] <= 12) return { iso:`${m[2]}-${m[1].padStart(2,"0")}-01`, soloMes:true };
+  m = t.match(/^(\d{4})[\/\-.](\d{1,2})$/);
+  if(m && +m[2] >= 1 && +m[2] <= 12) return { iso:`${m[1]}-${m[2].padStart(2,"0")}-01`, soloMes:true };
+  m = t.match(/^([a-z]+)[ \-\/.,]*(?:de )?(\d{2}|\d{4})$/);
+  if(m && MESES_ES[m[1]]){
+    const y = m[2].length === 2 ? "20" + m[2] : m[2];
+    return { iso:`${y}-${String(MESES_ES[m[1]]).padStart(2,"0")}-01`, soloMes:true };
+  }
+  return { iso:"", soloMes:false };
 }
 function parseValor(str){
   if(!str) return 0;
@@ -2245,6 +2284,7 @@ const COL_CC_COMPRADOR = colLetraAIndice("R");
 const COL_BANCO        = colLetraAIndice("AF");
 const COL_ETAPA_LEGAL  = colLetraAIndice("AG");
 const COL_FINALIZADO   = colLetraAIndice("AV");
+const COL_FECHA_REF_AP = colLetraAIndice("AP");   // fecha de referencia para "Desembolsos Trámites"
 // Valor de la columna AV ("ETAPAS") que marca un negocio como FINALIZADO (comparación sin tildes ni mayúsculas).
 const FINALIZADO_VALORES = ["finalizado"];
 
@@ -2335,6 +2375,7 @@ function mapTramitesRow(cols, idx){
     fechaGestion: parseFecha(get("fechaGestion")),
     fechaBoleta: parseFecha(get("fechaBoleta")),
     fechaDesembolso: parseFecha(get("fechaDesembolso")),
+    ...(() => { const ap = parseMesReferencia(get("fechaRefAP")); return { fechaRefAP: ap.iso, fechaRefAPTxt: get("fechaRefAP"), fechaRefAPSoloMes: ap.soloMes }; })(),
     valorDesembolso: parseValor(get("valorDesembolso")),
     mixto: parseMixto(get("mixto")),
     etapaAV,                                           // columna AV ("ETAPAS")
@@ -2362,6 +2403,7 @@ function enrichTramites(items){
 
 let tLoadPromise = null;
 let tAvisoColumnas = "";
+let tHeaderAP = "", tHeaderAQ = "";   // nombres de encabezado de las columnas AP y AQ (para mostrarlos en pantalla)
 let tDiagLogged = false;
 const tPendingEdits = {};   // "nid|campo" -> { nid, field, value, ts }  (protege contra datos viejos en caché)
 
@@ -2508,6 +2550,7 @@ async function _loadTramitesCore(){
       fechaGestion: findColIndex(headers, ["FECHA DE GESTION"]),
       fechaBoleta: findColIndex(headers, ["FECHA DE BOLETA","FECHA BOLETA"], ["FECHA DE BOLETA","FECHA BOLETA"]),
       fechaDesembolso: findColIndex(headers, ["FECHA DESEMBOLSO","FECHA DE DESEMBOLSO","FECHA DEL DESEMBOLSO"], ["FECHA DESEMBOLSO","FECHA DE DESEMBOLSO","FECHA DEL DESEMBOLSO"]),
+      fechaRefAP: colFija(COL_FECHA_REF_AP, headers, ["FECHA RADICACION DOCUMENTOS DESEMBOLSO"], []),                 // AP
       valorDesembolso: findColIndex(headers, ["VALOR DESEMBOLSO","VALOR DEL DESEMBOLSO","VALOR DE DESEMBOLSO"], ["VALOR DESEMBOLSO","VALOR DEL DESEMBOLSO","VALOR DE DESEMBOLSO"]),
       mixto: findColIndex(headers, ["ES DESEMBOLSO MIXTO","DESEMBOLSO MIXTO"], ["DESEMBOLSO MIXTO"]),
       finalizado: colFija(COL_FINALIZADO, headers, ["ETAPAS","FINALIZADO"], []),                                      // AV
@@ -2518,6 +2561,8 @@ async function _loadTramitesCore(){
     const problemasCols = validarColumnasTramites(headers, idx);
     tAvisoColumnas = problemasCols.length ? " · ⚠ Revisa las columnas del Sheet → " + problemasCols.join(" · ") : "";
     if(problemasCols.length) console.warn("Trámites · columnas que no coinciden con lo esperado:", problemasCols);
+    tHeaderAP = String(headers[idx.fechaRefAP] ?? "").trim();
+    tHeaderAQ = idx.fechaDesembolso >= 0 ? String(headers[idx.fechaDesembolso] ?? "").trim() : "";
     aplicarEdicionesPendientes(parsed);
     tramitesEnriched = enrichTramites(parsed);
 
@@ -3121,7 +3166,13 @@ const ETAPA_AV_COLOR = {
   "PTE AVANCE NOTARIA":"var(--habi-purple)", "FINALIZADO":"var(--habi-purple-dark)", "CANCELACION DE HIPOTECA DESEMBOLSO MIXTO":"#9CA3AF",
   "PTE ENVIO PARA DESEMBOLSO":"#9CA3AF", "OK BOLETA":"#7C4A2D", "CIERRE NOTARIAL":"var(--green)"
 };
-let tdAnalista = "todos", tdYear = "todos", tdMonth = "todos";
+let tdAnalista = "todos", tdYear = "todos", tdMonth = "todos", tdMesDes = "todos", tdRef = "AP";   // tdRef: columna que define el mes del desembolso (AP o AQ)
+
+// Fecha de referencia del desembolso de un negocio, según la columna elegida.
+function tdFechaRef(r){
+  if(tdRef === "AQ") return { iso: r.fechaDesembolso || "", txt: r.fechaDesembolso ? fmtFecha(r.fechaDesembolso) : "" };
+  return { iso: r.fechaRefAP || "", txt: r.fechaRefAP ? (r.fechaRefAPTxt || fmtFecha(r.fechaRefAP)) : "" };
+}
 
 // Reconstruye las opciones de un <select> solo si cambiaron (así el refresco automático no cierra un menú abierto).
 function tdSetOptions(sel, pares, actual){
@@ -3139,29 +3190,37 @@ function tdAnalistasConNegocios(){
 }
 function renderTdFilters(){
   const el = id => document.getElementById(id);
+  tdRef = tdSetOptions(el("td-ref"), [
+    ["AP", "Columna AP · " + (tHeaderAP || "fecha de referencia")],
+    ["AQ", "Columna AQ · " + (tHeaderAQ || "FECHA DESEMBOLSO")]
+  ], tdRef);
   tdAnalista = tdSetOptions(el("td-analista"), [["todos", "Todos los analistas"], ...tdAnalistasConNegocios().map(n => [n, n])], tdAnalista);
   const delAnalista = tdAnalista === "todos" ? tramitesEnriched : tramitesEnriched.filter(r => r.analista === tdAnalista);
-  const years = [...new Set(delAnalista.flatMap(r => [r.fechaGestion, r.fechaDesembolso]).filter(Boolean).map(f => f.slice(0, 4)))].sort();
+  const years = [...new Set(delAnalista.flatMap(r => [r.fechaGestion, tdFechaRef(r).iso]).filter(Boolean).map(f => f.slice(0, 4)))].sort();
   tdYear = tdSetOptions(el("td-year"), [["todos", "Todos los años"], ...years.map(y => [y, y])], tdYear);
+  const mesesDes = [...new Set(delAnalista.map(r => tdFechaRef(r).iso).filter(f => f && (tdYear === "todos" || f.slice(0, 4) === tdYear)).map(f => f.slice(0, 7)))].sort();
+  tdMesDes = tdSetOptions(el("td-mes-des"), [["todos", "Todos los meses"], ...mesesDes.map(m => [m, monthLabel(m)])], tdMesDes);
   const months = [...new Set(delAnalista
     .filter(r => r.fechaGestion && (tdYear === "todos" || r.fechaGestion.slice(0, 4) === tdYear))
     .map(r => r.fechaGestion.slice(0, 7)))].sort();
   tdMonth = tdSetOptions(el("td-month"), [["todos", "Todos los meses"], ...months.map(m => [m, monthLabel(m)])], tdMonth);
 }
-["td-analista", "td-year", "td-month"].forEach(id => {
+["td-analista", "td-ref", "td-year", "td-mes-des", "td-month"].forEach(id => {
   document.getElementById(id).addEventListener("change", e => {
-    if(id === "td-analista") tdAnalista = e.target.value;
+    if(id === "td-ref") tdRef = e.target.value;
+    else if(id === "td-analista") tdAnalista = e.target.value;
     else if(id === "td-year") tdYear = e.target.value;
+    else if(id === "td-mes-des") tdMesDes = e.target.value;
     else tdMonth = e.target.value;
     renderTramitesDesembolsos();
   });
 });
 document.getElementById("td-clear").addEventListener("click", () => {
-  tdAnalista = "todos"; tdYear = "todos"; tdMonth = "todos";
+  tdAnalista = "todos"; tdYear = "todos"; tdMonth = "todos"; tdMesDes = "todos"; tdRef = "AP";
   renderTramitesDesembolsos();
 });
 
-function tdPanelMeses(containerId, grouped, pendiente, dateField){
+function tdPanelMeses(containerId, grouped, pendiente, dateField, sel){
   const el = document.getElementById(containerId);
   if(grouped.length === 0){
     el.innerHTML = `<div class="muted" style="font-size:12.5px;">Sin datos con fecha registrada.</div>`;
@@ -3169,7 +3228,7 @@ function tdPanelMeses(containerId, grouped, pendiente, dateField){
   }
   const max = Math.max(...grouped.map(([, v]) => v.total), 1);
   el.innerHTML = grouped.map(([key, v]) => `
-    <div class="month-row clickable-row" style="cursor:pointer;">
+    <div class="month-row clickable-row${sel && sel !== "todos" && key !== sel ? " dim" : ""}" style="cursor:pointer;">
       <div class="month-label">${monthLabel(key)}</div>
       <div class="month-track"><div class="month-fill${pendiente ? " pending" : ""}" style="width:${Math.round((v.total / max) * 100)}%"></div></div>
       <div class="month-value">${fmtValor(v.total)}</div>
@@ -3178,7 +3237,7 @@ function tdPanelMeses(containerId, grouped, pendiente, dateField){
 }
 
 function openTdMonthDetail(monthKey, items, dateField){
-  document.getElementById("td-month-title").textContent = monthLabel(monthKey) + (dateField === "fechaDesembolso" ? " · desembolsado" : " · pendiente (estimado)") + (tdAnalista !== "todos" ? " · " + tdAnalista : "");
+  document.getElementById("td-month-title").textContent = monthLabel(monthKey) + (dateField === "fechaRef" ? " · desembolsado" : " · pendiente (estimado)") + (tdAnalista !== "todos" ? " · " + tdAnalista : "");
   document.getElementById("td-month-sub").textContent = `${items.length} negocio(s) · ${fmtValor(items.reduce((a, it) => a + (it.valorDesembolso || 0), 0))}`;
   const tb = document.getElementById("td-month-tbody");
   tb.innerHTML = items.map(it => `
@@ -3189,7 +3248,7 @@ function openTdMonthDetail(monthKey, items, dateField){
       <td class="muted">${it.banco}</td>
       <td class="val">${fmtValor(it.valorDesembolso)}</td>
       <td class="muted">${it.mixto}</td>
-      <td class="muted">${fmtFecha(it[dateField])}</td>
+      <td class="muted">${dateField === "fechaRef" ? (it.fechaRefTxt || "—") : fmtFecha(it[dateField])}</td>
     </tr>`).join("");
   tb.querySelectorAll(".td-month-row").forEach(tr => {
     tr.onclick = () => { document.getElementById("td-month-overlay").classList.remove("show"); openTramitesModal(tr.dataset.nid); };
@@ -3203,24 +3262,30 @@ function renderTramitesDesembolsos(){
   renderTdFilters();
   const el = id => document.getElementById(id);
   const yOk = f => tdYear === "todos" || (!!f && f.slice(0, 4) === tdYear);
-  const esReal = r => !!r.fechaDesembolso && yOk(r.fechaDesembolso);
-  const esPend = r => !r.finalizado && !r.fechaDesembolso && r.etapaAV !== "DESEMBOLSADO" && (tdYear === "todos" || yOk(r.fechaGestion));
+  const refIso = r => tdFechaRef(r).iso;
+  const esReal = r => !!refIso(r) && yOk(refIso(r));
+  const esPend = r => !r.finalizado && !refIso(r) && !r.fechaDesembolso && r.etapaAV !== "DESEMBOLSADO" && (tdYear === "todos" || yOk(r.fechaGestion));
+  el("td-ref-sub").textContent = tdRef === "AQ"
+    ? "Según la fecha de la columna AQ «" + (tHeaderAQ || "FECHA DESEMBOLSO") + "»"
+    : "Según la fecha de la columna AP «" + (tHeaderAP || "fecha de referencia") + "»";
   const suma = arr => arr.reduce((a, r) => a + (r.valorDesembolso || 0), 0);
   const base = tdAnalista === "todos" ? tramitesEnriched : tramitesEnriched.filter(r => r.analista === tdAnalista);
-  const real = base.filter(esReal), pend = base.filter(esPend);
+  const esRealM = r => esReal(r) && (tdMesDes === "todos" || refIso(r).slice(0, 7) === tdMesDes);
+  const real = base.filter(esReal), realM = base.filter(esRealM), pend = base.filter(esPend);
+  el("td-resumen-nota").textContent = tdMesDes !== "todos" ? "  ·  desembolsos de " + monthLabel(tdMesDes) : "";
   const quien = tdAnalista !== "todos" ? " · " + tdAnalista : "";
 
   // ---- Tarjetas resumen
   const sinFecha = pend.filter(r => !r.fechaGestion).length;
   el("td-metrics").innerHTML = `
-    <div class="metric-card"><div class="metric-label">Valor desembolsado (real)</div><div class="metric-value">${fmtValor(suma(real))}</div><div class="metric-sub">${real.length} negocio(s) con fecha de desembolso${quien}</div></div>
+    <div class="metric-card"><div class="metric-label">Valor desembolsado (real)</div><div class="metric-value">${fmtValor(suma(realM))}</div><div class="metric-sub">${realM.length} negocio(s) con fecha en la columna ${tdRef}${tdMesDes !== "todos" ? " en " + monthLabel(tdMesDes) : ""}${quien}</div></div>
     <div class="metric-card"><div class="metric-label">Valor pendiente por desembolsar</div><div class="metric-value">${fmtValor(suma(pend))}</div><div class="metric-sub">${pend.length} negocio(s) en curso${sinFecha ? " · " + sinFecha + " sin fecha de gestión" : ""}</div></div>
-    <div class="metric-card"><div class="metric-label">Total (desembolsado + pendiente)</div><div class="metric-value">${fmtValor(suma(real) + suma(pend))}</div><div class="metric-sub">Referencia del valor en movimiento</div></div>`;
+    <div class="metric-card"><div class="metric-label">Total (desembolsado + pendiente)</div><div class="metric-value">${fmtValor(suma(realM) + suma(pend))}</div><div class="metric-sub">Referencia del valor en movimiento</div></div>`;
 
   // ---- Resumen por analista (siempre lista a todos; respeta el año)
   const nombresTabla = tdAnalista === "todos" ? tdAnalistasConNegocios() : [tdAnalista];
   const filas = nombresTabla.map(a => {
-    const rr = tramitesEnriched.filter(r => r.analista === a && esReal(r));
+    const rr = tramitesEnriched.filter(r => r.analista === a && esRealM(r));
     const pp = tramitesEnriched.filter(r => r.analista === a && esPend(r));
     return { a, nr: rr.length, vr: suma(rr), np: pp.length, vp: suma(pp) };
   }).sort((x, y) => (y.vr - x.vr) || x.a.localeCompare(y.a));
@@ -3242,9 +3307,91 @@ function renderTramitesDesembolsos(){
     tr.onclick = () => { tdAnalista = tdAnalista === tr.dataset.analista ? "todos" : tr.dataset.analista; renderTramitesDesembolsos(); };
   });
 
+  // ---- Desembolsado por analista y por mes (matriz). Muestra todos los meses y resalta el elegido.
+  const nombresM = tdAnalista === "todos" ? tdAnalistasConNegocios() : [tdAnalista];
+  const celdas = {}, mesesM = new Set();
+  tramitesEnriched.forEach(r => {
+    if(!nombresM.includes(r.analista) || !esReal(r)) return;
+    const m = refIso(r).slice(0, 7); mesesM.add(m);
+    const fila = (celdas[r.analista] = celdas[r.analista] || {});
+    const c = (fila[m] = fila[m] || { n: 0, v: 0 });
+    c.n++; c.v += r.valorDesembolso || 0;
+  });
+  const colsM = [...mesesM].sort();
+  const totA = a => Object.values(celdas[a] || {}).reduce((t, c) => t + c.v, 0);
+  const nA = a => Object.values(celdas[a] || {}).reduce((t, c) => t + c.n, 0);
+  const filasM = nombresM.filter(a => celdas[a] || tdAnalista === a).sort((x, y) => (totA(y) - totA(x)) || x.localeCompare(y));
+  const celdaHtml = (a, m) => {
+    const c = (celdas[a] || {})[m];
+    return c ? `<td class="td-celda${tdAnalista === a && tdMesDes === m ? " sel" : ""}" data-analista="${a}" data-mes="${m}" style="text-align:right; cursor:pointer;"><b>${fmtValor(c.v)}</b><div class="muted" style="font-size:11px;">${c.n} negocio${c.n === 1 ? "" : "s"}</div></td>`
+             : `<td style="text-align:right;" class="muted">—</td>`;
+  };
+  el("td-matriz").innerHTML = colsM.length ? `
+    <table>
+      <thead><tr><th>Analista</th>${colsM.map(m => `<th class="td-mes-th${m === tdMesDes ? " sel" : ""}" data-mes="${m}" style="text-align:right; cursor:pointer;">${monthLabel(m)}</th>`).join("")}<th style="text-align:right;">Total</th></tr></thead>
+      <tbody>${filasM.map(a => `<tr${tdAnalista === a ? ' class="dia-analista-row sel"' : ""}><td class="val td-nombre" data-analista="${a}" style="cursor:pointer;">${a}</td>${colsM.map(m => celdaHtml(a, m)).join("")}<td style="text-align:right; font-weight:800;">${fmtValor(totA(a))}<div class="muted" style="font-size:11px; font-weight:600;">${nA(a)} negocio${nA(a) === 1 ? "" : "s"}</div></td></tr>`).join("")}
+      ${tdAnalista !== "todos" ? "" : `<tr style="font-weight:800; background:#FAFAFB;"><td>Total equipo</td>${colsM.map(m => {
+          const vv = filasM.reduce((t, a) => t + (((celdas[a] || {})[m] || {}).v || 0), 0), nn = filasM.reduce((t, a) => t + (((celdas[a] || {})[m] || {}).n || 0), 0);
+          return `<td style="text-align:right;">${fmtValor(vv)}<div class="muted" style="font-size:11px; font-weight:600;">${nn} negocio${nn === 1 ? "" : "s"}</div></td>`; }).join("")}
+          <td style="text-align:right;">${fmtValor(filasM.reduce((t, a) => t + totA(a), 0))}<div class="muted" style="font-size:11px; font-weight:600;">${filasM.reduce((t, a) => t + nA(a), 0)} negocios</div></td></tr>`}
+      </tbody>
+    </table>` : `<div class="muted" style="font-size:12.5px; padding:6px 2px;">Ningún negocio${tdAnalista !== "todos" ? " de " + tdAnalista : ""} tiene fecha en la columna ${tdRef}${tdYear !== "todos" ? " en " + tdYear : ""}.</div>`;
+  el("td-matriz").querySelectorAll(".td-celda").forEach(td => {
+    td.onclick = () => {
+      if(tdAnalista === td.dataset.analista && tdMesDes === td.dataset.mes){ tdAnalista = "todos"; tdMesDes = "todos"; }
+      else { tdAnalista = td.dataset.analista; tdMesDes = td.dataset.mes; }
+      renderTramitesDesembolsos();
+    };
+  });
+  el("td-matriz").querySelectorAll(".td-mes-th").forEach(th => {
+    th.onclick = () => { tdMesDes = tdMesDes === th.dataset.mes ? "todos" : th.dataset.mes; renderTramitesDesembolsos(); };
+  });
+  el("td-matriz").querySelectorAll(".td-nombre").forEach(td => {
+    td.onclick = () => { tdAnalista = tdAnalista === td.dataset.analista ? "todos" : td.dataset.analista; renderTramitesDesembolsos(); };
+  });
+
   // ---- Desembolsos por mes
-  tdPanelMeses("td-mes-real", groupByMonth(real.map(r => ({ ...r, valor: r.valorDesembolso })), "fechaDesembolso"), false, "fechaDesembolso");
+  tdPanelMeses("td-mes-real", groupByMonth(real.map(r => { const f = tdFechaRef(r); return { ...r, valor: r.valorDesembolso, fechaRef: f.iso, fechaRefTxt: f.txt }; }), "fechaRef"), false, "fechaRef", tdMesDes);
   tdPanelMeses("td-mes-pend", groupByMonth(pend.filter(r => r.fechaGestion).map(r => ({ ...r, valor: r.valorDesembolso })), "fechaGestion"), true, "fechaGestion");
+
+  // ---- Explicación del mes actual cuando no hay desembolsos
+  const mesActual = hoyLocalISO().slice(0, 7);
+  const otraRef = tdRef === "AP" ? "AQ" : "AP";
+  const fechaDe = (r, ref) => ref === "AQ" ? r.fechaDesembolso : r.fechaRefAP;
+  const notaEl = el("td-nota-mes");
+  const hayMesActual = real.some(r => refIso(r).slice(0, 7) === mesActual);
+  if(!hayMesActual && (tdYear === "todos" || tdYear === mesActual.slice(0, 4))){
+    const otra = base.filter(r => (fechaDe(r, otraRef) || "").slice(0, 7) === mesActual);
+    const enCurso = pend.filter(r => (r.fechaGestion || "").slice(0, 7) === mesActual);
+    let nota = `En ${monthLabel(mesActual)} ${tdAnalista !== "todos" ? tdAnalista + " no tiene" : "no hay"} negocios con fecha en la columna ${tdRef}.`;
+    nota += otra.length
+      ? ` Con la columna ${otraRef} sí aparecerían ${otra.length} (${fmtValor(suma(otra))}): cámbiala en «Fecha de desembolso según».`
+      : ` Tampoco hay fechas en la columna ${otraRef} para ese mes.`;
+    if(enCurso.length) nota += ` Hay ${enCurso.length} negocio(s) en curso gestionados este mes (${fmtValor(suma(enCurso))}) que todavía no tienen fecha en la columna ${tdRef}.`;
+    notaEl.textContent = nota; notaEl.style.display = "";
+  } else { notaEl.textContent = ""; notaEl.style.display = "none"; }
+
+  // ---- Comparación AP vs AQ por mes (con el filtro de analista; sin filtro de año, para ver todo)
+  const comp = {};
+  base.forEach(r => {
+    if(r.fechaRefAP){ const k = r.fechaRefAP.slice(0, 7); (comp[k] = comp[k] || { ap:[0, 0], aq:[0, 0] }).ap[0]++; comp[k].ap[1] += r.valorDesembolso || 0; }
+    if(r.fechaDesembolso){ const k = r.fechaDesembolso.slice(0, 7); (comp[k] = comp[k] || { ap:[0, 0], aq:[0, 0] }).aq[0]++; comp[k].aq[1] += r.valorDesembolso || 0; }
+  });
+  const mk = Object.keys(comp).sort();
+  const sinAPconAQ = base.filter(r => !r.fechaRefAP && r.fechaDesembolso).length;
+  const conAPsinAQ = base.filter(r => r.fechaRefAP && !r.fechaDesembolso).length;
+  const sinFechaConValor = base.filter(r => !r.fechaRefAP && !r.fechaDesembolso && (r.valorDesembolso || 0) > 0 && !r.finalizado);
+  el("td-comp").innerHTML = (mk.length ? `
+    <div class="table-scroll"><table>
+      <thead><tr><th>Mes</th><th>Columna AP: negocios</th><th>Columna AP: valor</th><th>Columna AQ: negocios</th><th>Columna AQ: valor</th></tr></thead>
+      <tbody>${mk.map(k => `<tr${k === mesActual ? ' style="background:#F3EEFD;"' : ""}><td class="val">${monthLabel(k)}${k === mesActual ? " · mes actual" : ""}</td>
+        <td>${comp[k].ap[0]}</td><td>${fmtValor(comp[k].ap[1])}</td><td>${comp[k].aq[0]}</td><td>${fmtValor(comp[k].aq[1])}</td></tr>`).join("")}</tbody>
+    </table></div>` : `<div class="muted" style="font-size:12.5px;">Ningún negocio${tdAnalista !== "todos" ? " de " + tdAnalista : ""} tiene fecha en las columnas AP ni AQ.</div>`) + `
+    <ul class="muted" style="font-size:12.5px; margin:12px 0 0 18px; line-height:1.7;">
+      <li><b>${sinAPconAQ}</b> negocio(s) tienen fecha en AQ pero <b>no</b> en AP (no aparecen si el mes se toma de AP).</li>
+      <li><b>${conAPsinAQ}</b> negocio(s) tienen fecha en AP pero todavía no en AQ (radicados, sin desembolso registrado).</li>
+      <li><b>${sinFechaConValor.length}</b> negocio(s) activos tienen valor de desembolso pero ninguna de las dos fechas (${fmtValor(suma(sinFechaConValor))}).</li>
+    </ul>`;
 
   // ---- Distribución por etapa (año y mes según fecha de gestión)
   const rowsD = base.filter(r =>
