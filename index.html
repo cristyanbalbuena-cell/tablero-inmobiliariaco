@@ -725,6 +725,7 @@
     <div class="eyebrow">Estudio de Títulos Verano / Inmobiliaria</div>
 
     <div class="banner" id="v-banner">⚠️ No se pudo conectar en vivo al Google Sheet — mostrando datos de ejemplo.</div>
+    <div class="t-sync" id="v-fuente"></div>
 
     <div class="section-title">Resumen</div>
     <div class="metrics" id="v-metrics"></div>
@@ -3443,19 +3444,62 @@ function mapVeranoRow(cols, idx){
   };
 }
 
+let vFuenteOk = "";   // "directa" | "appscript": la vía que funcionó la última vez (se intenta primero)
+
+// Vía 1: lectura directa del Sheet (requiere que esté compartido como «Cualquiera con el enlace · Lector»).
+async function leerVeranoDirecto(){
+  let data;
+  try{ data = await loadViaJSONP_V(VERANO_GVIZ_URL, 10000); }
+  catch(e){ throw new Error("Google no devolvió el Sheet (casi siempre es falta de permiso: debe estar compartido como «Cualquiera con el enlace · Lector»)"); }
+  if(!data || data.status === "error" || !data.table){
+    const er = data && data.errors && data.errors[0];
+    throw new Error("Google respondió con un error: " + (er ? (er.detailed_message || er.message || er.reason) : "respuesta no válida"));
+  }
+  return gvizToRows(data);
+}
+
+// Vía 2: lectura a través del Apps Script (usa los permisos de quien lo publicó, no requiere Sheet público).
+async function leerVeranoAppsScript(){
+  if(!WEBAPP_URL) throw new Error("falta configurar WEBAPP_URL");
+  const url = `${WEBAPP_URL}?action=leer&spreadsheetId=${encodeURIComponent(VERANO_SPREADSHEET_ID)}&hoja=${encodeURIComponent(VERANO_SHEET_NAME)}&gid=${VERANO_GID}&callback=__waVerano`;
+  let data;
+  try{ data = await jsonpGenerico(url, "__waVerano", 25000); }
+  catch(e){ throw new Error("el Apps Script no respondió (revisa que esté desplegado con acceso «Cualquier usuario» y con la versión nueva de Codigo.gs)"); }
+  if(!data || !data.success) throw new Error("el Apps Script respondió: " + ((data && data.error) || "sin datos"));
+  return data.rows;
+}
+
+// Busca la fila de encabezados (la que contiene "NID") entre las primeras filas, por si hay títulos arriba.
+function buscarFilaEncabezado(rows, requerido){
+  for(let i = 0; i < Math.min(rows.length, 15); i++){
+    if((rows[i] || []).some(c => normalizeHeader(String(c || "")) === requerido)) return i;
+  }
+  return -1;
+}
+
 async function loadVeranoData(){
   const banner = document.getElementById("v-banner");
+  const fuenteEl = document.getElementById("v-fuente");
+  const fallos = [];
   try{
-    let rows;
-    try{
-      const gvizData = await loadViaJSONP_V(VERANO_GVIZ_URL, 20000);
-      if(!gvizData || !gvizData.table) throw new Error("Respuesta gviz inválida");
-      rows = gvizToRows(gvizData);
-    } catch(jsonpErr){
-      const csvText = await fetchFirstWorking(VERANO_CSV_URLS);
-      rows = parseCSV(csvText);
+    let rows = null;
+    const orden = vFuenteOk === "appscript" ? ["appscript", "directa"] : ["directa", "appscript"];
+    for(const f of orden){
+      try{
+        rows = f === "directa" ? await leerVeranoDirecto() : await leerVeranoAppsScript();
+        vFuenteOk = f; break;
+      } catch(e){
+        fallos.push((f === "directa" ? "Lectura directa: " : "Vía Apps Script: ") + e.message);
+      }
     }
-    const headers = rows[0];
+    if(!rows){ vFuenteOk = ""; throw new Error(fallos.join("  ·  ")); }
+
+    const fh = buscarFilaEncabezado(rows, "NID");
+    if(fh === -1){
+      const muestra = rows.slice(0, 3).map(r => (r || []).filter(Boolean).slice(0, 8).join(" | ")).filter(Boolean).join(" // ");
+      throw new Error("Se leyó el Sheet pero no se encontró una columna llamada NID en las primeras 15 filas. Lo que se leyó al inicio: «" + muestra.slice(0, 220) + "»");
+    }
+    const headers = rows[fh];
     const idx = {
       nid: findColIndex(headers, ["NID"]),
       nombre: findColIndex(headers, ["NOMBRE"]),
@@ -3475,13 +3519,20 @@ async function loadVeranoData(){
       promedioDias: findColIndex(headers, ["PROMEDIO DIAS"]),
       estado: findColIndex(headers, ["ESTADO"])
     };
-    const parsed = rows.slice(1).map(r => mapVeranoRow(r, idx)).filter(Boolean);
-    if(parsed.length === 0) throw new Error("Sin filas válidas");
+    const parsed = rows.slice(fh + 1).map(r => mapVeranoRow(r, idx)).filter(Boolean);
+    if(parsed.length === 0) throw new Error("Se leyó el Sheet (encabezados en la fila " + (fh + 1) + ") pero ninguna fila tiene un NID con números.");
     veranoEnriched = parsed;
     banner.classList.remove("show");
+    const faltan = Object.entries(idx).filter(([k, i]) => i === -1).map(([k]) => k);
+    if(faltan.length) console.warn("Verano · columnas no encontradas (se muestran vacías):", faltan);
+    fuenteEl.textContent = "✓ Conectado · " + (vFuenteOk === "appscript" ? "lectura vía Apps Script" : "lectura directa del Sheet") +
+      " · " + new Date().toLocaleTimeString("es-CO", {hour:"2-digit", minute:"2-digit"}) +
+      (faltan.length ? " · ⚠ columnas no encontradas: " + faltan.join(", ") : "");
   } catch(err){
     if(veranoEnriched.length === 0) veranoEnriched = veranoSample.map(r => ({...r, estado: r.estado}));
+    banner.textContent = "⚠️ No se pudo conectar en vivo al Google Sheet — mostrando datos de ejemplo. Motivo: " + err.message;
     banner.classList.add("show");
+    fuenteEl.textContent = "";
     console.warn("Estudio de títulos Verano: no se pudo cargar en vivo:", err);
   }
   vRenderAll();
@@ -3860,6 +3911,7 @@ async function handleStatusChange(nid, newStatus){
         field: "estado",
         value: newStatus,
         sheet: VERANO_SHEET_NAME,
+        gid: VERANO_GID,
         spreadsheetId: VERANO_SPREADSHEET_ID
       })
     });
